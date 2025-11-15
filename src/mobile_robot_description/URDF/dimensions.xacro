@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org.wiki/xacro">
+    
+    <!-- PROPERTIES -->
+    <xacro:property name="base_length" value="0.6"/>
+    <xacro:property name="base_width" value="0.4"/>
+    <xacro:property name="base_height" value="0.2"/>
+    <xacro:property name="wheel_radius" value="0.1"/>
+    <xacro:property name="wheel_height" value="0.05"/>
+    <xacro:property name="caster_wheel_radius" value="${wheel_radius/2.0}"/>
+    <xacro:property name="wheel_radius_separation" value="${wheel_height+base_width}"/>
+
+
+
+
+
+</robot>

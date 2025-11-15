@@ -1,0 +1,114 @@
+<?xml version="1.0"?>
+<robot name="MineMapper" xmlns:xacro="http://www.ros.org.wiki/xacro">
+    
+    <!-- INCLUDES -->
+    <xacro:include filename="commom_properties.xacro"/>
+    <xacro:include filename="mobile_base_gazebo.xacro"/>
+    <xacro:include filename="dimensions.xacro"/>
+    <xacro:include filename="lidar.xacro"/>
+
+
+    <xacro:macro name="wheel_link" params="side color">
+        <link name="${side}_wheel_link">
+            <visual>
+                <geometry>
+                    <cylinder radius="0.1" length="${wheel_height}"/>
+                </geometry>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <material name="${color}"/>
+            </visual>
+
+            <collision>
+                <geometry>
+                    <sphere radius="0.1"/>
+                </geometry>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+            </collision>
+
+            <xacro:cylinder_inertia m = "1.0" r="0.1" h="${wheel_height}" 
+                                    xyz="0 0 0" rpy="0 0 0"/>
+        </link>
+    </xacro:macro>
+
+    <xacro:macro name="wheel_joint" params="side">
+        <joint name="base_${side}_wheel_joint" type="continuous">
+            <parent link="base_link"/>
+            <child link="${side}_wheel_link"/>
+            <xacro:if value="${side == 'left'}">
+                <origin xyz="${-base_length/4} ${ base_width/2 + wheel_height/2} 0" rpy="${-pi/2} 0 0"/>
+            </xacro:if>
+            <xacro:if value="${side == 'right'}">
+                <origin xyz="${-base_length/4} ${-base_width/2 - wheel_height/2} 0" rpy="${-pi/2} 0 0"/>
+            </xacro:if>
+            <axis xyz = "0 0 1" />
+        </joint>
+    </xacro:macro>
+
+
+    <link name="base_footprint"/> 
+
+    <joint name="base_joint" type="fixed">
+        <parent link="base_footprint"/>
+        <child link="base_link"/>
+        <origin xyz = "0 0 0" rpy = "0 0 0"/>
+    </joint>
+
+
+    <link name="base_link">
+        <visual>
+            <geometry>
+                <box size=" ${base_length}
+                            ${base_width} 
+                            ${base_height}"/>
+            </geometry>
+            <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
+            <material name = "green"/>
+        </visual>
+
+        <collision>
+            <geometry>
+                <box size=" ${base_length}
+                            ${base_width} 
+                            ${base_height}"/>
+            </geometry>
+            <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
+        </collision>
+
+        <xacro:box_inertia m = "1.0" l="${base_length}" w="${base_width}" h="${base_height}" 
+                                    xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
+    </link>
+
+    <xacro:wheel_link side="right" color="grey"/>
+    <xacro:wheel_link side="left" color="grey"/>
+
+    <xacro:wheel_joint side="right"/>
+    <xacro:wheel_joint side="left"/>
+    
+    <link name="caster_wheel">
+        <visual>
+            <geometry>
+                <sphere radius="${wheel_radius/2}"/>
+            </geometry>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <material name = "grey"/>  
+        </visual>
+
+        <collision>
+            <geometry>
+                <sphere radius="${caster_wheel_radius}"/>
+            </geometry>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <material name = "grey"/>  
+        </collision>
+
+        <xacro:sphere_inertia   m="1.0" r="${caster_wheel_radius}" 
+                                xyz="0 0 0" rpy="0 0 0"/>
+    </link>
+
+    <joint name="base_caster_wheel_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="caster_wheel"/>
+        <origin xyz = "${base_length/3} 0 ${-caster_wheel_radius}" rpy = "0 0 0"/>
+    </joint>
+
+</robot>
