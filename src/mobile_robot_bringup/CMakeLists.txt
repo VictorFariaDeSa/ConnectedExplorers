@@ -10,7 +10,7 @@ find_package(ament_cmake REQUIRED)
 
 
 install(
-  DIRECTORY launch worlds config models slam_config
+  DIRECTORY launch worlds config models slam_config maps
   DESTINATION share/${PROJECT_NAME}/
 )
 

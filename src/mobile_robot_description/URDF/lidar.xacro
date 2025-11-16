@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org.wiki/xacro">
-    
+    <xacro:arg name="robot_ns" default=""/>
     <joint name="laser_joint" type="fixed">
         <parent link="base_link"/>
         <child link="laser_link"/>
@@ -31,7 +31,7 @@
     <gazebo reference="laser_link">
     <sensor name="lidar_sensor" type="gpu_lidar">
       <pose>0 0 0 0 0 0</pose>
-      <topic>scan</topic>
+      <topic>${robot_ns}/scan</topic>
       <update_rate>10</update_rate>
       <always_on>true</always_on>
       <visualize>true</visualize>

@@ -1,4 +1,4 @@
-image: my_map.pgm
+image: /home/victor/projects/final_proj_MR/src/mobile_robot_bringup/maps/my_map.pgm
 mode: trinary
 resolution: 0.050
 origin: [-9.975, -6.953, 0]
