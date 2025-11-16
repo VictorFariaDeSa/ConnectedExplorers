@@ -1,7 +1,0 @@
-image: /home/victor/projects/isaacsim-pick-and-place-hackathon/ros2_ws/src/mobile_robot_bringup/worlds/world_map.pgm
-mode: trinary
-resolution: 0.05
-origin: [-5.09, -4.79, 0]
-negate: 0
-occupied_thresh: 0.65
-free_thresh: 0.25

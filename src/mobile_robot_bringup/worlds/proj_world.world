@@ -90,5 +90,40 @@
         <falloff>0</falloff>
       </spot>
     </light>
+
+
+
+
+<include>
+  <uri>model://50m_wall</uri>
+  <name>parede_norte</name>
+  <pose>25 0 0 0 0 1.57</pose>
+</include>
+
+<include>
+  <uri>model://50m_wall</uri>
+  <name>parede_sul</name>
+  <pose>-25 0 0 0 0 1.57</pose>
+</include>
+
+<include>
+  <uri>model://50m_wall</uri>
+  <name>parede_leste</name>
+  <pose>0 -25 0 0 0 0</pose>
+</include>
+
+<include>
+  <uri>model://50m_wall</uri>
+  <name>parede_oeste</name>
+  <pose>0 25 0 0 0 0</pose>
+</include>
+
+
+<include>
+  <uri>model://50m_wall</uri>
+  <name>parede_frente</name>
+  <pose>2 0 0 0 0 1.57</pose>
+</include>
+
   </world>
 </sdf>

@@ -45,7 +45,11 @@ urdf_path = os.path.join(
 gazebo_config_path = os.path.join(
     get_package_share_directory(bringup_pkg), 'config', 'gazebo_bridge.yaml'
     )
+nav2_params_file = os.path.join(
+    get_package_share_directory(bringup_pkg), 'config', 'nav2_params.yaml'
+    )
 
+nav2_bringup_pkg = get_package_share_directory('nav2_bringup')
 
 '''
 ********************************************************************************
@@ -142,18 +146,37 @@ def generate_launch_description():
                     ]
                 ),
 
-                Node(
-                    package='tf2_ros',
-                    executable='static_transform_publisher',
-                    namespace=name,
-                    name='world_to_base',
-                    arguments=[str(robot['x']), str(robot['y']), '0', '0', '0', '0', 'world', f'{name}/base_footprint'],
-                    output='screen'
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(
+                        os.path.join(nav2_bringup_pkg, 'launch', 'bringup_launch.py')
+                    ),
+                    launch_arguments={
+                        'namespace': name,
+                        'use_sim_time': 'True',
+                        'autostart': 'True',
+                        'params_file': nav2_params_file,
+                        'use_composition': 'True',
+                    }.items()
                 )
+
+
+
             ]
         )
         launch_nodes.append(robot_group)
     
+
+    '''
+    ****************************************************************************
+    * Nav2 Stack
+    ****************************************************************************
+    '''
+
+
+
+
+
+
 
     return LaunchDescription(launch_nodes)
 
