@@ -114,22 +114,36 @@ def generate_launch_description():
     )
     launch_nodes.append(launch_rviz_node)
 
+
     '''
     ****************************************************************************
-    * MAP SERVER GLOBAL MINIMALISTA (Apenas map e use_sim_time)
+    * NAV2
     ****************************************************************************
     '''
-    launch_global_map_server = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(nav2_bringup_dir, 'launch', 'bringup_launch.py')
-        ),
-        launch_arguments={
-            'map': map_file,
-            'use_sim_time': "True",
-            'params_file': nav_config_path,
-        }.items()
+    map_server_node = Node(
+        package='nav2_map_server',
+        executable='map_server',
+        name='map_server',
+        output='screen',
+        parameters=[
+            {'use_sim_time': True,
+            'yaml_filename': map_file}
+        ]
     )
-    launch_nodes.append(launch_global_map_server)
+    launch_nodes.append(map_server_node)
+    
+    nav_lifecicle_manager_node = Node(
+        package='nav2_lifecycle_manager',
+        executable='lifecycle_manager',
+        name='lifecycle_manager_localization',
+        output='screen',
+        parameters=[
+            {'use_sim_time': True,
+            'autostart': True,
+            'node_names': ['map_server']}
+        ]
+    )
+    launch_nodes.append(nav_lifecicle_manager_node)
 
     '''
     ****************************************************************************
@@ -142,6 +156,8 @@ def generate_launch_description():
         y_pos = robot["y"]
         group = GroupAction([
         PushRosNamespace(name),
+
+        # robot_state_publisher — REMAPPED tf topics (do NOT use frame_prefix)
         Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
@@ -150,24 +166,69 @@ def generate_launch_description():
             parameters=[{
                 'robot_description': Command(['xacro ', urdf_path,' robot_ns_arg:=', name]),
                 'use_sim_time': True,
-                'frame_prefix': f'{name}/'
-            }]
+            }],
+            # <<-- IMPORTANT: remap to relative topics so TF lives in /<namespace>/tf
+            remappings=[
+                ('/tf', 'tf'),
+                ('/tf_static', 'tf_static'),
+            ],
         ),
+
         Node(
             package='ros_gz_sim',
             executable='create',
             name='spawn_entity',
             output='screen',
             arguments=[
-                '-name', name,                  
-                '-topic', 'robot_description',  
-                '-x', x_pos,                    
-                '-y', y_pos,                    
-                '-z', '0.1'                     
+                '-name', name,
+                '-topic', 'robot_description',
+                '-x', x_pos,
+                '-y', y_pos,
+                '-z', '0.1'
             ]
-        )
+        ),
+
+        # AMCL — REMAPPED tf topics and correct global_frame
+        Node(
+            package='nav2_amcl',
+            executable='amcl',
+            name='amcl',
+            output='screen',
+            parameters=[{
+                'use_sim_time': True,
+                # keep frame names simple: base_link / odom; AMCL uses global_frame_id 'map'
+                'base_frame_id': 'base_link',
+                'odom_frame_id': 'odom',
+                'global_frame_id': 'map',            # make sure AMCL references the global 'map'
+                'scan_topic': 'scan',                # relative topic -> /robotX/scan
+                'tf_broadcast': True,
+            }],
+            remappings=[
+                ('/tf', 'tf'),
+                ('/tf_static', 'tf_static'),
+            ],
+        ),
+
+        # per-robot lifecycle manager (if you keep it)
+        Node(
+            package='nav2_lifecycle_manager',
+            executable='lifecycle_manager',
+            name=f'lifecycle_manager_localization_{name}',
+            output='screen',
+            parameters=[{
+                'use_sim_time': True,
+                'autostart': True,
+                'node_names': ['amcl'],
+            }],
+            remappings=[
+                ('/tf', 'tf'),
+                ('/tf_static', 'tf_static'),
+            ],
+            ),
         ])
         launch_nodes.append(group)
+
+        
 
 
     gazebo_bridge_node = Node(
