@@ -133,7 +133,7 @@ def generate_launch_description():
             '-name', 'MineMapper',                      
             '-topic', 'robot_description',  
             '-x', '0',                    
-            '-y', '0',                    
+            '-y', '-3',                    
             '-z', '0.1'                     
         ]
     )
