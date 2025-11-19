@@ -11,7 +11,7 @@
   gz_type_name: "gz.msgs.Model"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "/robot1/tf"
+- ros_topic_name: "/tf"
   gz_topic_name: "/model/robot1/tf"
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"
@@ -36,7 +36,7 @@
   gz_type_name: "gz.msgs.Model"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "/robot2/tf"
+- ros_topic_name: "/tf"
   gz_topic_name: "/model/robot2/tf"
   ros_type_name: "tf2_msgs/msg/TFMessage"
   gz_type_name: "gz.msgs.Pose_V"

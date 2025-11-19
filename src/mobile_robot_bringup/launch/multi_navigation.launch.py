@@ -72,8 +72,17 @@ map_file = os.path.join(
     get_package_share_directory(bringup_pkg), 'maps', 'my_map.yaml'
 )
 
+'''
+------------------------------------------
+'''
 
+nav2_yaml_robot1 = os.path.join(get_package_share_directory(
+    "mobile_robot_bringup"), "config", "amcl_config_r1.yaml"
+)
 
+nav2_yaml_robot2 = os.path.join(get_package_share_directory(
+    "mobile_robot_bringup"), "config", "amcl_config_r2.yaml"
+)
 
 
 '''
@@ -110,7 +119,8 @@ def generate_launch_description():
         executable='rviz2',
         name='rviz2',
         arguments=['-d', rviz_config_file],
-        output='screen'
+        output='screen',
+        parameters=[{"use_sim_time": True}]
     )
     launch_nodes.append(launch_rviz_node)
 
@@ -119,17 +129,58 @@ def generate_launch_description():
     * MAP SERVER GLOBAL MINIMALISTA (Apenas map e use_sim_time)
     ****************************************************************************
     '''
-    launch_global_map_server = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(nav2_bringup_dir, 'launch', 'bringup_launch.py')
-        ),
-        launch_arguments={
-            'map': map_file,
-            'use_sim_time': "True",
-            'params_file': nav_config_path,
-        }.items()
+    map_server = Node(
+        package="nav2_map_server",
+        executable="map_server",
+        name="map_server",
+        output="screen",
+        parameters=[
+            {"use_sim_time":True},
+            {"topic_name":"map"},
+            {"frame_id":"map"},
+            {"yaml_filename":map_file}
+        ]
     )
-    launch_nodes.append(launch_global_map_server)
+    launch_nodes.append(map_server)
+
+    amcl_node = Node(
+        namespace="robot1",
+        package="nav2_amcl",
+        executable="amcl",
+        name="amcl",
+        output="screen",
+        parameters = [nav2_yaml_robot1]
+    )
+    launch_nodes.append(amcl_node)
+
+    amcl_node = Node(
+        namespace="robot2",
+        package="nav2_amcl",
+        executable="amcl",
+        name="amcl",
+        output="screen",
+        parameters = [nav2_yaml_robot2]
+    )
+    launch_nodes.append(amcl_node)
+
+    lifecycle_manager_node = Node(
+        package="nav2_lifecycle_manager",
+        executable="lifecycle_manager",
+        name="lifecycle_manager_localization",
+        output="screen",
+        parameters = [
+            {"use_sim_time":True},
+            {"autostart":True},
+            {"bond_timeout":0.0},
+            {"node_names":[
+                "map_server",
+                "robot1/amcl",
+                "robot2/amcl"
+            ]},
+
+        ]
+    )
+    launch_nodes.append(lifecycle_manager_node)
 
     '''
     ****************************************************************************
@@ -141,33 +192,51 @@ def generate_launch_description():
         x_pos = robot["x"]
         y_pos = robot["y"]
         group = GroupAction([
-        PushRosNamespace(name),
-        Node(
-            package='robot_state_publisher',
-            executable='robot_state_publisher',
-            name='state_publisher',
-            output='screen',
-            parameters=[{
-                'robot_description': Command(['xacro ', urdf_path,' robot_ns_arg:=', name]),
-                'use_sim_time': True,
-                'frame_prefix': f'{name}/'
-            }]
-        ),
-        Node(
-            package='ros_gz_sim',
-            executable='create',
-            name='spawn_entity',
-            output='screen',
-            arguments=[
-                '-name', name,                  
-                '-topic', 'robot_description',  
-                '-x', x_pos,                    
-                '-y', y_pos,                    
-                '-z', '0.1'                     
-            ]
-        )
-        ])
+            PushRosNamespace(name),
+            Node(
+                package='robot_state_publisher',
+                executable='robot_state_publisher',
+                name='state_publisher',
+                output='screen',
+                parameters=[{
+                    'robot_description': Command(['xacro ', urdf_path,' robot_ns_arg:=', name]),
+                    'use_sim_time': True,
+                    'frame_prefix': f'{name}/'
+                }]
+            ),
+            Node(
+                package='ros_gz_sim',
+                executable='create',
+                name='spawn_entity',
+                output='screen',
+                arguments=[
+                    '-name', name,                  
+                    '-topic', 'robot_description',  
+                    '-x', x_pos,                    
+                    '-y', y_pos,                    
+                    '-z', '0.1'                     
+                ]
+            )
+            ])
         launch_nodes.append(group)
+
+        pose_node = Node(
+            package="initial_pose_estimator",
+            executable="initial_pose_estimator",
+            name=f"{name}_initial_pose_estimator", 
+            output="screen",
+            parameters=[{
+                "x": float(x_pos),
+                "y": float(y_pos),
+                "namespace": name
+            }]
+        )
+        launch_nodes.append(pose_node)
+
+        
+
+    
+
 
 
     gazebo_bridge_node = Node(

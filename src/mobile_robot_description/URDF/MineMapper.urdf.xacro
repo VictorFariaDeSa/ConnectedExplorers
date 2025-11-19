@@ -3,7 +3,6 @@
     <xacro:arg name="robot_ns_arg" default="robot_default"/> 
     
     <xacro:property name="robot_ns" value="$(arg robot_ns_arg)"/>
-    <!-- INCLUDES -->
     <xacro:include filename="commom_properties.xacro"/>
     <xacro:include filename="mobile_base_gazebo.xacro"/>
     <xacro:include filename="dimensions.xacro"/>
