@@ -20,8 +20,14 @@ from launch.substitutions import Command
 '''
 robots = [
     {"name":"robot1","x":"1","y":"-3"},
-    {"name":"robot2","x":"-2","y":"-1"}
+    {"name":"robot2","x":"-2","y":"-1"},
+    {"name":"robot3","x":"-2","y":"-3"}
 ]
+
+lifecycle_managed_nodes = ["map_server"]
+
+def get_all_robot_names(robots):
+    return [robot["name"] for robot in robots ]
 
 '''
 ********************************************************************************
@@ -76,21 +82,16 @@ map_file = os.path.join(
 ------------------------------------------
 '''
 
-nav2_yaml_robot1 = os.path.join(get_package_share_directory(
-    "mobile_robot_bringup"), "config", "amcl_config_r1.yaml"
-)
+def get_robot_nav_yaml_file(robot_name):
+    return os.path.join(get_package_share_directory(
+        "mobile_robot_bringup"), "config", f"amcl_config_{robot_name}.yaml"
+    )
 
-nav2_yaml_robot2 = os.path.join(get_package_share_directory(
-    "mobile_robot_bringup"), "config", "amcl_config_r2.yaml"
-)
+def get_robot_nav_file(robot_name):
+    return os.path.join(get_package_share_directory(
+        "mobile_robot_bringup"), "config", f"nav2_planner_config_{robot_name}.yaml"
+    )
 
-my_nav_file1 = os.path.join(get_package_share_directory(
-    "mobile_robot_bringup"), "config", "nav2_planner_config_r1.yaml"
-)
-
-my_nav_file2 = os.path.join(get_package_share_directory(
-    "mobile_robot_bringup"), "config", "nav2_planner_config_r2.yaml"
-)
 '''
 ********************************************************************************
 * launch function
@@ -149,46 +150,6 @@ def generate_launch_description():
     )
     launch_nodes.append(map_server)
 
-    amcl_node = Node(
-        namespace="robot1",
-        package="nav2_amcl",
-        executable="amcl",
-        name="amcl",
-        output="screen",
-        parameters = [nav2_yaml_robot1]
-    )
-    launch_nodes.append(amcl_node)
-
-    amcl_node = Node(
-        namespace="robot2",
-        package="nav2_amcl",
-        executable="amcl",
-        name="amcl",
-        output="screen",
-        parameters = [nav2_yaml_robot2]
-    )
-    launch_nodes.append(amcl_node)
-
-    planner_node = Node(
-        namespace="robot1",
-        package='nav2_planner',
-        executable='planner_server',
-        name='planner_server',
-        output='screen',
-        parameters=[my_nav_file1] 
-    )
-    launch_nodes.append(planner_node)
-
-    planner_node = Node(
-        namespace="robot2",
-        package='nav2_planner',
-        executable='planner_server',
-        name='planner_server',
-        output='screen',
-        parameters=[my_nav_file2] 
-    )
-    launch_nodes.append(planner_node)
-
 
     '''
     ****************************************************************************
@@ -241,6 +202,28 @@ def generate_launch_description():
         )
         launch_nodes.append(pose_node)
 
+        amcl_node = Node(
+            namespace=name,
+            package="nav2_amcl",
+            executable="amcl",
+            name="amcl",
+            output="screen",
+            parameters = [get_robot_nav_yaml_file(name)]
+        )
+        launch_nodes.append(amcl_node)
+    
+        planner_node = Node(
+            namespace=name,
+            package='nav2_planner',
+            executable='planner_server',
+            name='planner_server',
+            output='screen',
+            parameters=[get_robot_nav_file(name)] 
+        )
+        launch_nodes.append(planner_node)
+
+        lifecycle_managed_nodes.append(f"{name}/amcl")
+        lifecycle_managed_nodes.append(f"{name}/planner_server")
         
 
 
@@ -255,14 +238,7 @@ def generate_launch_description():
             {"use_sim_time":True},
             {"autostart":True},
             {"bond_timeout":0.0},
-            {"node_names":[
-                "map_server",
-                "robot1/amcl",
-                "robot2/amcl",
-                "robot1/planner_server",
-                "robot2/planner_server"
-            ]},
-
+            {"node_names":lifecycle_managed_nodes},
         ]
     )
     launch_nodes.append(lifecycle_manager_node)
@@ -273,7 +249,7 @@ def generate_launch_description():
         executable="line_viewer",
         name="line_viewer_node",
         parameters=[
-            {"robot_list":["robot1","robot2"]},
+            {"robot_list":get_all_robot_names(robots)},
         ]
     )
     launch_nodes.append(marker_node)
