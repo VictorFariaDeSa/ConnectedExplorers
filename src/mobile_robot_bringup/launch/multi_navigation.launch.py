@@ -234,50 +234,40 @@ def generate_launch_description():
             ]
         )
 
+        behavior_node = Node(
+            namespace=name,
+            package='nav2_behaviors',
+            executable='behavior_server',
+            name='behavior_server',
+            output='screen',
+            parameters=[get_robot_nav_file(name)],
+            remappings=[('/cmd_vel', f'/{name}/cmd_vel')] # Importante!
+        )
+
+        # Nó do Navegador (Gerencia a missão)
+        bt_navigator_node = Node(
+            namespace=name,
+            package='nav2_bt_navigator',
+            executable='bt_navigator',
+            name='bt_navigator',
+            output='screen',
+            parameters=[get_robot_nav_file(name)]
+        )
+
+
         lifecycle_managed_nodes.append(f"{name}/amcl")
         lifecycle_managed_nodes.append(f"{name}/planner_server")
         lifecycle_managed_nodes.append(f"{name}/controller_server")
+        lifecycle_managed_nodes.append(f"{name}/behavior_server")
+        lifecycle_managed_nodes.append(f"{name}/bt_navigator")
 
         delayed_nav_nodes = TimerAction(
             period=5.0, 
-            actions=[pose_node, amcl_node, planner_node, controller_node]
+            actions=[pose_node, amcl_node, planner_node, controller_node,behavior_node,bt_navigator_node]
         )
         
         launch_nodes.append(delayed_nav_nodes)
         
-
-
-    name = "robot1"
-    behavior_node = Node(
-        namespace=name,
-        package='nav2_behaviors',
-        executable='behavior_server',
-        name='behavior_server',
-        output='screen',
-        parameters=[get_robot_nav_file(name)],
-        remappings=[('/cmd_vel', f'/{name}/cmd_vel')] # Importante!
-    )
-
-    # Nó do Navegador (Gerencia a missão)
-    bt_navigator_node = Node(
-        namespace=name,
-        package='nav2_bt_navigator',
-        executable='bt_navigator',
-        name='bt_navigator',
-        output='screen',
-        parameters=[get_robot_nav_file(name)]
-    )
-    lifecycle_managed_nodes.append(f"{name}/behavior_server")
-    lifecycle_managed_nodes.append(f"{name}/bt_navigator")
-
-
-    new_delayed_nodes = TimerAction(
-        period=5.0, 
-        actions=[behavior_node, bt_navigator_node]
-    )
-    
-    launch_nodes.append(new_delayed_nodes)
-
     lifecycle_manager_node = Node(
         package="nav2_lifecycle_manager",
         executable="lifecycle_manager",
