@@ -222,37 +222,30 @@ def generate_launch_description():
         )
         # launch_nodes.append(planner_node)
 
+        controller_node = Node(
+            namespace=name,
+            package='nav2_controller',
+            executable='controller_server',
+            name='controller_server',
+            output='screen',
+            parameters=[get_robot_nav_file(name)], # O YAML que acabamos de editar
+            remappings=[
+                ('/cmd_vel', f'/{name}/cmd_vel')
+            ]
+        )
+
         lifecycle_managed_nodes.append(f"{name}/amcl")
         lifecycle_managed_nodes.append(f"{name}/planner_server")
+        lifecycle_managed_nodes.append(f"{name}/controller_server")
+
         delayed_nav_nodes = TimerAction(
             period=5.0, 
-            actions=[pose_node, amcl_node, planner_node]
+            actions=[pose_node, amcl_node, planner_node, controller_node]
         )
         
         launch_nodes.append(delayed_nav_nodes)
         
 
-
-    controller_node = Node(
-            namespace="robot1",
-            package='nav2_controller',
-            executable='controller_server',
-            name='controller_server',
-            output='screen',
-            parameters=[get_robot_nav_file("robot1")], # O YAML que acabamos de editar
-            remappings=[
-                ('/cmd_vel', '/robot1/cmd_vel')
-            ]
-        )
-    lifecycle_managed_nodes.append("robot1/controller_server")
-
-    delayed_nav_controller_node = TimerAction(
-            period=5.0, 
-            actions=[controller_node]
-        )
-        
-    launch_nodes.append(delayed_nav_controller_node)
-        
 
     lifecycle_manager_node = Node(
         package="nav2_lifecycle_manager",
