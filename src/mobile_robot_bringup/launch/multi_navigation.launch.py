@@ -247,6 +247,37 @@ def generate_launch_description():
         
 
 
+    name = "robot1"
+    behavior_node = Node(
+        namespace=name,
+        package='nav2_behaviors',
+        executable='behavior_server',
+        name='behavior_server',
+        output='screen',
+        parameters=[get_robot_nav_file(name)],
+        remappings=[('/cmd_vel', f'/{name}/cmd_vel')] # Importante!
+    )
+
+    # Nó do Navegador (Gerencia a missão)
+    bt_navigator_node = Node(
+        namespace=name,
+        package='nav2_bt_navigator',
+        executable='bt_navigator',
+        name='bt_navigator',
+        output='screen',
+        parameters=[get_robot_nav_file(name)]
+    )
+    lifecycle_managed_nodes.append(f"{name}/behavior_server")
+    lifecycle_managed_nodes.append(f"{name}/bt_navigator")
+
+
+    new_delayed_nodes = TimerAction(
+        period=5.0, 
+        actions=[behavior_node, bt_navigator_node]
+    )
+    
+    launch_nodes.append(new_delayed_nodes)
+
     lifecycle_manager_node = Node(
         package="nav2_lifecycle_manager",
         executable="lifecycle_manager",
@@ -261,6 +292,9 @@ def generate_launch_description():
     )
     launch_nodes.append(lifecycle_manager_node) #tavlez adicionar um delay aqui
     
+
+
+
 
     marker_node = Node(
         package="line_viewer",
