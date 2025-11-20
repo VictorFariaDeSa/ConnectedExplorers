@@ -8,7 +8,7 @@
 import os
 from launch import LaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.actions import IncludeLaunchDescription, GroupAction
+from launch.actions import IncludeLaunchDescription, GroupAction, TimerAction
 from ament_index_python.packages import get_package_share_directory
 from launch_ros.actions import Node, PushRosNamespace
 from launch.substitutions import Command
@@ -200,7 +200,7 @@ def generate_launch_description():
                 "namespace": name
             }]
         )
-        launch_nodes.append(pose_node)
+        # launch_nodes.append(pose_node)
 
         amcl_node = Node(
             namespace=name,
@@ -210,7 +210,7 @@ def generate_launch_description():
             output="screen",
             parameters = [get_robot_nav_yaml_file(name)]
         )
-        launch_nodes.append(amcl_node)
+        # launch_nodes.append(amcl_node)
     
         planner_node = Node(
             namespace=name,
@@ -220,14 +220,39 @@ def generate_launch_description():
             output='screen',
             parameters=[get_robot_nav_file(name)] 
         )
-        launch_nodes.append(planner_node)
+        # launch_nodes.append(planner_node)
 
         lifecycle_managed_nodes.append(f"{name}/amcl")
         lifecycle_managed_nodes.append(f"{name}/planner_server")
+        delayed_nav_nodes = TimerAction(
+            period=5.0, 
+            actions=[pose_node, amcl_node, planner_node]
+        )
+        
+        launch_nodes.append(delayed_nav_nodes)
         
 
 
+    controller_node = Node(
+            namespace="robot1",
+            package='nav2_controller',
+            executable='controller_server',
+            name='controller_server',
+            output='screen',
+            parameters=[get_robot_nav_file("robot1")], # O YAML que acabamos de editar
+            remappings=[
+                ('/cmd_vel', '/robot1/cmd_vel')
+            ]
+        )
+    lifecycle_managed_nodes.append("robot1/controller_server")
 
+    delayed_nav_controller_node = TimerAction(
+            period=5.0, 
+            actions=[controller_node]
+        )
+        
+    launch_nodes.append(delayed_nav_controller_node)
+        
 
     lifecycle_manager_node = Node(
         package="nav2_lifecycle_manager",
@@ -241,7 +266,7 @@ def generate_launch_description():
             {"node_names":lifecycle_managed_nodes},
         ]
     )
-    launch_nodes.append(lifecycle_manager_node)
+    launch_nodes.append(lifecycle_manager_node) #tavlez adicionar um delay aqui
     
 
     marker_node = Node(
