@@ -21,7 +21,7 @@ from launch.substitutions import Command
 robots = [
     {"name":"robot1","x":"1","y":"-3"},
     {"name":"robot2","x":"-2","y":"-1"},
-    {"name":"robot3","x":"-2","y":"-3"}
+    {"name":"robot3","x":"-4","y":"-5"}
 ]
 
 lifecycle_managed_nodes = ["map_server"]
