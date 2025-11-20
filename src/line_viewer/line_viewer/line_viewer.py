@@ -53,6 +53,7 @@ class GazeboLinePublisher(Node):
         self.robot_list = [] if self.robot_list == [''] else self.robot_list
             
         self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.Init_marker_publisher(
             pub_time=self.publisher_time_interval,
