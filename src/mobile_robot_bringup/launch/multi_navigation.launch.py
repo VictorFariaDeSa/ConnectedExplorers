@@ -268,7 +268,15 @@ def generate_launch_description():
     launch_nodes.append(lifecycle_manager_node)
     
 
-
+    marker_node = Node(
+        package="line_viewer",
+        executable="line_viewer",
+        name="line_viewer_node",
+        parameters=[
+            {"robot_list":["robot1","robot2"]},
+        ]
+    )
+    launch_nodes.append(marker_node)
 
     gazebo_bridge_node = Node(
         package='ros_gz_bridge',
