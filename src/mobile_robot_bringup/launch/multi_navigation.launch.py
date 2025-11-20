@@ -84,7 +84,13 @@ nav2_yaml_robot2 = os.path.join(get_package_share_directory(
     "mobile_robot_bringup"), "config", "amcl_config_r2.yaml"
 )
 
+my_nav_file1 = os.path.join(get_package_share_directory(
+    "mobile_robot_bringup"), "config", "nav2_planner_config_r1.yaml"
+)
 
+my_nav_file2 = os.path.join(get_package_share_directory(
+    "mobile_robot_bringup"), "config", "nav2_planner_config_r2.yaml"
+)
 '''
 ********************************************************************************
 * launch function
@@ -163,24 +169,26 @@ def generate_launch_description():
     )
     launch_nodes.append(amcl_node)
 
-    lifecycle_manager_node = Node(
-        package="nav2_lifecycle_manager",
-        executable="lifecycle_manager",
-        name="lifecycle_manager_localization",
-        output="screen",
-        parameters = [
-            {"use_sim_time":True},
-            {"autostart":True},
-            {"bond_timeout":0.0},
-            {"node_names":[
-                "map_server",
-                "robot1/amcl",
-                "robot2/amcl"
-            ]},
-
-        ]
+    planner_node = Node(
+        namespace="robot1",
+        package='nav2_planner',
+        executable='planner_server',
+        name='planner_server',
+        output='screen',
+        parameters=[my_nav_file1] 
     )
-    launch_nodes.append(lifecycle_manager_node)
+    launch_nodes.append(planner_node)
+
+    planner_node = Node(
+        namespace="robot2",
+        package='nav2_planner',
+        executable='planner_server',
+        name='planner_server',
+        output='screen',
+        parameters=[my_nav_file2] 
+    )
+    launch_nodes.append(planner_node)
+
 
     '''
     ****************************************************************************
@@ -235,6 +243,29 @@ def generate_launch_description():
 
         
 
+
+
+
+    lifecycle_manager_node = Node(
+        package="nav2_lifecycle_manager",
+        executable="lifecycle_manager",
+        name="lifecycle_manager_localization",
+        output="screen",
+        parameters = [
+            {"use_sim_time":True},
+            {"autostart":True},
+            {"bond_timeout":0.0},
+            {"node_names":[
+                "map_server",
+                "robot1/amcl",
+                "robot2/amcl",
+                "robot1/planner_server",
+                "robot2/planner_server"
+            ]},
+
+        ]
+    )
+    launch_nodes.append(lifecycle_manager_node)
     
 
 
