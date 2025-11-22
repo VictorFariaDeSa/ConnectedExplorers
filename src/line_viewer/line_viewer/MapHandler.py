@@ -92,8 +92,8 @@ class MapHandler:
 
 
     def Get_line_between_robots(self, r1: RobotClass, r2: RobotClass):
-        cell_1 = self.world_to_grid(r1.position)
-        cell_2 = self.world_to_grid(r2.position)
+        cell_1 = self.world_to_grid(r1.pose.position)
+        cell_2 = self.world_to_grid(r2.pose.position)
         if cell_1 is None or cell_2 is None:
             return None
             

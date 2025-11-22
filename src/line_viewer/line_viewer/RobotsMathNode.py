@@ -1,6 +1,5 @@
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Point
 from functools import partial
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from rclpy.qos import QoSProfile
@@ -11,6 +10,9 @@ from .RobotClass import RobotClass
 from .MapHandler import MapHandler
 from nav_msgs.msg import OccupancyGrid
 from .MathHandler import MathHandler
+from .Ros2Utils import numpy_matrix_to_float64multArray
+from geometry_msgs.msg import Pose
+
 
 class RobotsMathNode(Node):
     def __init__(self):
@@ -58,7 +60,7 @@ class RobotsMathNode(Node):
             self.robots_instances[robot_name] = RobotClass(robot_name)
             callback_function = partial(self.listener_callback, robot_index=i)
             self.subscriptions_dict[robot_name] = self.create_subscription(
-                Point,
+                Pose,
                 topic_name,
                 callback_function,
                 qos
@@ -86,7 +88,7 @@ class RobotsMathNode(Node):
             laplacian_matrix = self.math_handler.Get_laplacian_matrix()
             if laplacian_matrix is None:
                 return
-            msg = self.numpy_matrix_to_float64multArray(laplacian_matrix)
+            msg = numpy_matrix_to_float64multArray(laplacian_matrix)
             self.laplacian_matrix_publisher.publish(msg)
 
     def publish_lambda_gradient(self):
@@ -94,29 +96,15 @@ class RobotsMathNode(Node):
             lambda_gradient = self.math_handler.Get_gradient_vector()
             if lambda_gradient is None:
                 return
-            msg = self.numpy_matrix_to_float64multArray(lambda_gradient)
+            msg = numpy_matrix_to_float64multArray(lambda_gradient)
             self.lambda_gradient_publisher.publish(msg)
 
 
-    def numpy_matrix_to_float64multArray(self,numpy_matrix):
-        msg = Float64MultiArray()
-        msg.data = numpy_matrix.flatten().tolist()
-        rows = numpy_matrix.shape[0]
-        cols = numpy_matrix.shape[1]
-        dim_rows = MultiArrayDimension()
-        dim_rows.label = "rows"
-        dim_rows.size = rows
-        dim_rows.stride = rows * cols
-        dim_cols = MultiArrayDimension()
-        dim_cols.label = "cols"
-        dim_cols.size = cols
-        dim_cols.stride = cols
-        msg.layout.dim = [dim_rows, dim_cols]
-        return msg
+    
 
     def listener_callback(self, msg, robot_index):
         robot_name = self.robots_list[robot_index] 
-        self.robots_instances[robot_name].Set_position(msg)
+        self.robots_instances[robot_name].Set_pose(msg)
         robot_instance_list = [self.robots_instances[robot] for robot in self.robots_list]
         self.math_handler.refresh_laplacian_matrix(robot_instance_list)
 

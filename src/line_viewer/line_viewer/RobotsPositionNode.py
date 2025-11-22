@@ -2,10 +2,11 @@ import rclpy
 from rclpy.node import Node
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Pose
 from tf2_ros import TransformException
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from rclpy.qos import QoSProfile
+from tf_transformations import euler_from_quaternion
 
 class RobotsPositionNode(Node):
     def __init__(self):
@@ -28,7 +29,7 @@ class RobotsPositionNode(Node):
         for robot_name in self.robots_list:
             topic_name = f"{robot_name}/position"             
             self.robot_publishers[robot_name] = self.create_publisher(
-                Point, 
+                Pose, 
                 topic_name, 
                 qos
             )
@@ -51,10 +52,16 @@ class RobotsPositionNode(Node):
                 target_frame,
                 rclpy.time.Time()
             )
-            p = Point()
-            p.x = t.transform.translation.x
-            p.y = t.transform.translation.y
-            p.z = t.transform.translation.z
+            p = Pose()
+            p.position.x = t.transform.translation.x
+            p.position.y = t.transform.translation.y
+            p.position.z = t.transform.translation.z
+
+            p.orientation.x = t.transform.rotation.x
+            p.orientation.y = t.transform.rotation.y
+            p.orientation.z = t.transform.rotation.z
+            p.orientation.w = t.transform.rotation.w
+
             return p
 
         except TransformException:

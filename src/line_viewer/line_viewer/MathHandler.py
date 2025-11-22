@@ -141,12 +141,12 @@ class MathHandler:
         if full_dist < 1e-6:
             return 0.0
         world_point = self.map_handler.grid_to_world(grid_cell)
-        obst_to_p2 = np.hypot(world_point.x - r1.position.x, world_point.y - r1.position.y)
+        obst_to_p2 = np.hypot(world_point.x - r1.pose.position.x, world_point.y - r1.pose.position.y)
         return obst_to_p2 / full_dist
     
     def compute_distance_score_derivate(self,r1:RobotClass,r2:RobotClass,reference): #derivando com respeito a p1
         dist = r1.Get_distance_to(r2)
         if reference == "x":
-            return (r1.position.x-r2.position.x)/dist * (-1/self.max_robots_dist)
+            return (r1.pose.position.x-r2.pose.position.x)/dist * (-1/self.max_robots_dist)
         elif reference == "y":
-            return (r1.position.y-r2.position.y)/dist * (-1/self.max_robots_dist)
+            return (r1.pose.position.y-r2.pose.position.y)/dist * (-1/self.max_robots_dist)

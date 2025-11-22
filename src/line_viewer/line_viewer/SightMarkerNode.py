@@ -4,11 +4,13 @@ from rclpy.qos import QoSProfile
 from visualization_msgs.msg import Marker
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from .RobotClass import RobotClass
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Pose
 from functools import partial
 from typing import Dict
-from std_msgs.msg import Float64MultiArray, MultiArrayDimension
+from std_msgs.msg import Float64MultiArray
 import numpy as np
+from .Ros2Utils import float64multArray_to_numpy_matrix
+
 
 class SightMarkerNode(Node):
     def __init__(self):
@@ -41,7 +43,7 @@ class SightMarkerNode(Node):
             self.robots_instances[robot_name] = RobotClass(robot_name)
             callback_function = partial(self.listener_callback, robot_index=i)
             self.subscriptions_dict[robot_name] = self.create_subscription(
-                Point,
+                Pose,
                 topic_name,
                 callback_function,
                 qos
@@ -62,27 +64,14 @@ class SightMarkerNode(Node):
             )
         self.timer = self.create_timer(0.1, self.publish_markers)
 
-    def convert_ros_msg_to_numpy(self,msg: Float64MultiArray) -> np.ndarray:
-        if not msg.data:
-            return np.array([])
-        data = np.array(msg.data)
-        if msg.layout.dim:
-            rows = msg.layout.dim[0].size
-            cols = msg.layout.dim[1].size
-            if rows * cols == len(data):
-                return data.reshape((rows, cols))
-        side_length = int(np.sqrt(len(data)))
-        
-        if side_length * side_length == len(data):
-            return data.reshape((side_length, side_length))
-        return data
+    
 
     def laplacian_matrix_cb(self,msg):
-        self.laplacian_matrix = self.convert_ros_msg_to_numpy(msg)
+        self.laplacian_matrix = float64multArray_to_numpy_matrix(msg)
 
     def listener_callback(self, msg, robot_index):
         robot_name = self.robots_list[robot_index] 
-        self.robots_instances[robot_name].Set_position(msg)
+        self.robots_instances[robot_name].Set_pose(msg)
 
 
 
@@ -126,7 +115,7 @@ class SightMarkerNode(Node):
         marker.color.a = float(self.line_alpha)
         marker.scale.x = float(self.line_scale)
         
-        marker.points = [r1.position, r2.position]
+        marker.points = [r1.pose.position, r2.pose.position]
         return marker
 
 
