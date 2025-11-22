@@ -262,7 +262,7 @@ def generate_launch_description():
         lifecycle_managed_nodes.append(f"{name}/bt_navigator")
 
         delayed_nav_nodes = TimerAction(
-            period=5.0, 
+            period=3.0, 
             actions=[pose_node, amcl_node, planner_node, controller_node,behavior_node,bt_navigator_node]
         )
         
@@ -286,15 +286,58 @@ def generate_launch_description():
 
 
 
+    # marker_node = Node(
+    #     package="line_viewer",
+    #     executable="line_viewer",
+    #     name="line_viewer_node",
+    #     parameters=[
+    #         {"robot_list":get_all_robot_names(robots)},
+    #     ]
+    # )
+    # launch_nodes.append(marker_node)
+
+
     marker_node = Node(
         package="line_viewer",
-        executable="line_viewer",
-        name="line_viewer_node",
+        executable="RobotsPositionNode",
+        name="RobotsPositionNode",
         parameters=[
-            {"robot_list":get_all_robot_names(robots)},
+            {"robots_list":get_all_robot_names(robots)},
+            {"reference_frame":"map"}
         ]
     )
     launch_nodes.append(marker_node)
+
+    marker_node = Node(
+        package="line_viewer",
+        executable="RobotsMathNode",
+        name="RobotsMathNode",
+        parameters=[
+            {"robots_list":get_all_robot_names(robots)},
+            {"max_robots_dist":10.0},
+            {"min_dist_to_wall":0.1},
+            {"max_dist_to_wall":1.0},
+            {"laplacian_topic_name":"laplacian_matrix"},
+
+        ]
+    )
+    launch_nodes.append(marker_node)
+
+    marker_node = Node(
+        package="line_viewer",
+        executable="SightMarkerNode",
+        name="SightMarkerNode",
+        parameters=[
+            {"robots_list":get_all_robot_names(robots)},
+            {"reference_frame":"map"},
+            {"publisher_node_name":"visualization_marker"}
+
+        ]
+    )
+    launch_nodes.append(marker_node)
+
+
+
 
     gazebo_bridge_node = Node(
         package='ros_gz_bridge',

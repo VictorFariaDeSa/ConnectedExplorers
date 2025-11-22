@@ -24,8 +24,9 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            "line_viewer = line_viewer.line_viewer:main"
-
+            "RobotsPositionNode = line_viewer.RobotsPositionNode:main",
+            "RobotsMathNode = line_viewer.RobotsMathNode:main",
+            "SightMarkerNode = line_viewer.SightMarkerNode:main"
         ],
     },
 )
