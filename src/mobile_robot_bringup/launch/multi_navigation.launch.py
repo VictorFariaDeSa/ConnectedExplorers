@@ -262,7 +262,7 @@ def generate_launch_description():
         lifecycle_managed_nodes.append(f"{name}/bt_navigator")
 
         delayed_nav_nodes = TimerAction(
-            period=3.0, 
+            period=5.0, 
             actions=[pose_node, amcl_node, planner_node, controller_node,behavior_node,bt_navigator_node]
         )
         

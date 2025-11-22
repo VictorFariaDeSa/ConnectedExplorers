@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 
 from .RobotClass import RobotClass
 
-
 class Cell:
     def __init__(self,x,y):
         self.x = x
@@ -109,8 +108,8 @@ class MapHandler:
         return min_dist, cell_min_point
     
 
-    def get_gradient_x(self, grid_coord):
-        return self.dist_transform_x_derivative[grid_coord[1], grid_coord[0]]
+    def get_gradient_x(self, cell:Cell):
+        return self.dist_transform_x_derivative[cell.y, cell.x]
 
-    def get_gradient_y(self, grid_coord):
-        return self.dist_transform_y_derivative[grid_coord[1], grid_coord[0]]
+    def get_gradient_y(self, cell:Cell):
+        return self.dist_transform_y_derivative[cell.y, cell.x]
