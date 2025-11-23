@@ -21,7 +21,7 @@ from launch.substitutions import Command
 robots = [
     {"name":"robot1","x":"1","y":"-3"},
     {"name":"robot2","x":"-2","y":"-1"},
-    {"name":"robot3","x":"-4","y":"-5"}
+    {"name":"robot3","x":"-1","y":"-5"}
 ]
 
 lifecycle_managed_nodes = ["map_server"]
@@ -230,7 +230,7 @@ def generate_launch_description():
             output='screen',
             parameters=[get_robot_nav_file(name)], # O YAML que acabamos de editar
             remappings=[
-                ('/cmd_vel', f'/{name}/cmd_vel')
+                ('cmd_vel', 'ideal_cmd_vel')
             ]
         )
 
@@ -241,7 +241,7 @@ def generate_launch_description():
             name='behavior_server',
             output='screen',
             parameters=[get_robot_nav_file(name)],
-            remappings=[('/cmd_vel', f'/{name}/cmd_vel')] # Importante!
+            remappings=[('cmd_vel', 'ideal_cmd_vel')] # Importante!
         )
 
         # Nó do Navegador (Gerencia a missão)
@@ -336,6 +336,15 @@ def generate_launch_description():
     )
     launch_nodes.append(marker_node)
 
+    marker_node = Node(
+        package="line_viewer",
+        executable="RobotsControllerNode",
+        name="RobotsControllerNode",
+        parameters=[
+            {"robots_list":get_all_robot_names(robots)}
+        ]
+    )
+    launch_nodes.append(marker_node)
 
 
 

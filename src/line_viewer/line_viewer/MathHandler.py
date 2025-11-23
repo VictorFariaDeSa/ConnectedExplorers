@@ -28,6 +28,12 @@ class MatrixHandler:
         v_2 = eigenvectors[:, 1]
         return lambda_2, v_2
     
+    def Set_laplacian_matrix(self,matrix):
+        self.laplacian_matrix = matrix
+        diag_values = np.diag(self.laplacian_matrix)
+        self.degree_matrix = np.diag(diag_values)
+        self.adjacency_matrix = self.degree_matrix - self.laplacian_matrix
+
     def Get_laplacian_matrix(self):
         return self.laplacian_matrix
 

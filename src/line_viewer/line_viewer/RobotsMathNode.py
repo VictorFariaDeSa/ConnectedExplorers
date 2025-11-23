@@ -4,7 +4,7 @@ from functools import partial
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from rclpy.qos import QoSProfile
 from typing import Dict
-from std_msgs.msg import Float64MultiArray, MultiArrayDimension
+from std_msgs.msg import Float64MultiArray
 
 from .RobotClass import RobotClass
 from .MapHandler import MapHandler
