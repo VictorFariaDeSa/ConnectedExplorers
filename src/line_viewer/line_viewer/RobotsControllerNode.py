@@ -30,8 +30,8 @@ class RobotsControllerNode(Node):
         self.declare_parameter("ideal_cmd_vel_topic_name", "ideal_cmd_vel")
         self.ideal_cmd_vel_topic_name= self.get_parameter("ideal_cmd_vel_topic_name").value
 
-        self.epsilon = 0.2
-        self.gamma = 0.1
+        self.epsilon = 0.3
+        self.gamma = 0.3
 
         self.publishers_dict = {}
         self.subscriptions_dict_cmd_vel = {}
@@ -106,7 +106,7 @@ class RobotsControllerNode(Node):
         angular_velocity = msg.angular.z
 
         curr_robot = self.robots_instances[robot_name]
-        vx,vy = curr_robot.Linear_velocity_to_xy(linear_velocity,angular_velocity,0.1)
+        vx,vy = curr_robot.Linear_velocity_to_xy(linear_velocity,angular_velocity,0.15+0.15)
         self.velocities_vector = np.zeros((self.n_robots*2,1))
         self.velocities_vector[robot_index*2] = vx
         self.velocities_vector[robot_index*2+1] = vy
@@ -121,7 +121,7 @@ class RobotsControllerNode(Node):
             publisher = self.publishers_dict[robot_name]
             v_global = velocities_vector[2*i, 0]
             w_global = velocities_vector[2*i+1, 0]
-            v,w = robot.feedback_linearization_global_velocities_to_vw(v_global,w_global,0.1)
+            v,w = robot.feedback_linearization_global_velocities_to_vw(v_global,w_global,0.15+0.15)
             msg = Twist()
             msg.linear.x = v
             msg.angular.z = w
@@ -129,24 +129,21 @@ class RobotsControllerNode(Node):
 
 
 
-        
-
-
-
-
     def get_optimized_movement_vector(self,ideal_vector):
         lambda_2,_ = self.matrix_handler.Get_second_eingenvalue_and_eingenvector()
         barrier_val = - self.gamma * (lambda_2-self.epsilon)
 
-        projection = self.gradient_vector.T @ ideal_vector
+        projection = (self.gradient_vector.T @ ideal_vector).item()
         if projection > barrier_val:
             return ideal_vector
         n_vars = ideal_vector.shape[0]
 
         u = cp.Variable((n_vars, 1))
         objective = cp.Minimize(cp.sum_squares(u - ideal_vector))
+        max_vel = 5
         constraints = [
-            self.gradient_vector.T @ u >= barrier_val
+            self.gradient_vector.T @ u >= barrier_val,
+            cp.abs(u) <= max_vel
         ]
         problem = cp.Problem(objective, constraints)
     

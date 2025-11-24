@@ -80,7 +80,7 @@ class MathHandler:
     def calculate_connection_score(self,r1:RobotClass, r2:RobotClass):
         dist_score = self.calculate_distance_score(r1,r2)
         sight_score = self.calculate_sight_score(r1,r2)
-        return dist_score*sight_score
+        return dist_score *sight_score
     
 
 
@@ -93,8 +93,8 @@ class MathHandler:
     def Get_gradient_vector(self):
         gradient_vector = np.zeros((self.n_nodes*2,1))
         counter = 0
-        for axis in ["x","y"]:
-            for r_index in range(self.n_nodes):
+        for r_index in range(self.n_nodes):
+            for axis in ["x","y"]:
                 grad_param = self.get_lambda2_derivative_with_respect_to(axis,r_index)
                 gradient_vector[counter,0] = grad_param
                 counter += 1
@@ -121,7 +121,7 @@ class MathHandler:
             new_derivative_adjacency_matrix[i,index] = score_derivative
         return new_derivative_adjacency_matrix
     
-    def compute_score_derivative(self,i,j,reference):
+    def compute_score_derivative(self,i,j,reference): #VFSA
         robots_dict = [self.parent.robots_instances[robot_name] 
                        for robot_name in self.parent.robots_list]
         r1:RobotClass = robots_dict[i]
@@ -131,7 +131,7 @@ class MathHandler:
         return (
             self.compute_sight_score_derivative(r1,r2,reference,cell) * 
             self.calculate_distance_score(r1,r2) +
-            self.compute_distance_score_derivate(r1,r2,reference) * 
+            self.compute_distance_score_derivate(r1,r2,reference) *
             self.calculate_sight_score(r1,r2)
         )
 

@@ -13,15 +13,31 @@ from ament_index_python.packages import get_package_share_directory
 from launch_ros.actions import Node, PushRosNamespace
 from launch.substitutions import Command
 
+
+MAX_ROBOTS_DIST = 10.0
+
+
 '''
 ********************************************************************************
 * User defined params
 ********************************************************************************
 '''
+# robots = [
+#     {"name":"robot1","x":"-0","y":"-2"},
+#     {"name":"robot2","x":"-2","y":"1"},
+#     {"name":"robot3","x":"-3","y":"-6"}
+# ]
+
+# robots = [
+#     {"name":"robot1","x":"0","y":"-6"},
+#     {"name":"robot2","x":"-4","y":"-8"},
+#     {"name":"robot3","x":"-8","y":"-8"}
+# ]
+
 robots = [
-    {"name":"robot1","x":"1","y":"-3"},
-    {"name":"robot2","x":"-2","y":"-1"},
-    {"name":"robot3","x":"-1","y":"-5"}
+    {"name":"robot1","x":"7","y":"0"},
+    {"name":"robot2","x":"4","y":"-2"},
+    {"name":"robot3","x":"0","y":"-2"}
 ]
 
 lifecycle_managed_nodes = ["map_server"]
@@ -43,7 +59,7 @@ bringup_pkg = 'mobile_robot_bringup'
 ********************************************************************************
 '''
 world_path = os.path.join(
-    get_package_share_directory(bringup_pkg), 'worlds', 'proj_world.world'
+    get_package_share_directory(bringup_pkg), 'worlds', 'simpler.world'
     )
 rviz_config_file = os.path.join(
     get_package_share_directory(bringup_pkg), 'config', 'rviz_config.rviz'
@@ -75,7 +91,7 @@ nav2_bringup_dir = get_package_share_directory('nav2_bringup')
 bringup_launch_file = os.path.join(nav2_bringup_dir, 'launch', 'bringup_launch.py')
 
 map_file = os.path.join(
-    get_package_share_directory(bringup_pkg), 'maps', 'my_map.yaml'
+    get_package_share_directory(bringup_pkg), 'maps', 'simpler_map.yaml'
 )
 
 '''
@@ -262,7 +278,7 @@ def generate_launch_description():
         lifecycle_managed_nodes.append(f"{name}/bt_navigator")
 
         delayed_nav_nodes = TimerAction(
-            period=5.0, 
+            period=7.0, 
             actions=[pose_node, amcl_node, planner_node, controller_node,behavior_node,bt_navigator_node]
         )
         
@@ -283,20 +299,6 @@ def generate_launch_description():
     launch_nodes.append(lifecycle_manager_node) #tavlez adicionar um delay aqui
     
 
-
-
-
-    # marker_node = Node(
-    #     package="line_viewer",
-    #     executable="line_viewer",
-    #     name="line_viewer_node",
-    #     parameters=[
-    #         {"robot_list":get_all_robot_names(robots)},
-    #     ]
-    # )
-    # launch_nodes.append(marker_node)
-
-
     marker_node = Node(
         package="line_viewer",
         executable="RobotsPositionNode",
@@ -314,7 +316,7 @@ def generate_launch_description():
         name="RobotsMathNode",
         parameters=[
             {"robots_list":get_all_robot_names(robots)},
-            {"max_robots_dist":10.0},
+            {"max_robots_dist":MAX_ROBOTS_DIST},
             {"min_dist_to_wall":0.1},
             {"max_dist_to_wall":1.0},
             {"laplacian_topic_name":"laplacian_matrix"},

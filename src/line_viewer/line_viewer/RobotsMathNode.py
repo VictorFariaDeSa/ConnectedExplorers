@@ -23,7 +23,7 @@ class RobotsMathNode(Node):
         self.robots_list = self.get_parameter("robots_list").value
         self.robots_list = [] if self.robots_list == [''] else self.robots_list
 
-        self.declare_parameter("max_robots_dist", 10.0)
+        self.declare_parameter("max_robots_dist", 5.0)
         self.max_robots_dist = self.get_parameter("max_robots_dist").value
 
         self.declare_parameter("min_dist_to_wall", 0.1)
@@ -115,6 +115,8 @@ class RobotsMathNode(Node):
         )
         self.map_handler.compute_map_distance()
         self.map_handler.generate_distances_colormap("/home/victor/projects/final_proj_MR/images/map.png")
+        self.map_handler.generate_gradient_colormap("/home/victor/projects/final_proj_MR/images/map_x.png","x")
+        self.map_handler.generate_gradient_colormap("/home/victor/projects/final_proj_MR/images/map_y.png","y")
 
         self.math_handler = MathHandler(self)
 

@@ -78,15 +78,28 @@ class MapHandler:
         grid = np.array(self.map_data).reshape((height, width))
         binary_map = np.where((grid > 90) | (grid < 0), 0, 1)
         self.dist_transform = distance_transform_edt(binary_map) * self.map_info.resolution
-        self.dist_transform_y_derivative, self.dist_transform_x_derivative = np.gradient(self.dist_transform)
+        dy, dx = np.gradient(self.dist_transform, self.map_info.resolution)
+        self.dist_transform_y_derivative = dy
+        self.dist_transform_x_derivative = dx
 
     def generate_distances_colormap(self,path):
         plt.figure(figsize=(10, 10))
         plt.imshow(self.dist_transform, cmap='jet', origin='lower') 
-        
         plt.colorbar(label='Distância até a parede (m)')
         plt.title('Transformada de Distância Euclidiana (EDT)')
-        
+        plt.savefig(path)
+        plt.close()
+
+    def generate_gradient_colormap(self,path,axis):
+        plt.figure(figsize=(10, 10))
+        if axis =="x":
+            plt.imshow(self.dist_transform_x_derivative, cmap='jet', origin='lower') 
+        elif axis =="y":
+            plt.imshow(self.dist_transform_y_derivative, cmap='jet', origin='lower') 
+        else:
+            return
+        plt.colorbar(label='Distância até a parede (m)')
+        plt.title('Transformada de Distância Euclidiana (EDT)')
         plt.savefig(path)
         plt.close()
 
