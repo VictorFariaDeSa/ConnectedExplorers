@@ -3,6 +3,7 @@ import numpy as np
 from .RobotClass import RobotClass
 from .MapHandler import MapHandler, Cell, GridLine
 from typing import TYPE_CHECKING, List
+import copy
 
 if TYPE_CHECKING:
     from .RobotsMathNode import RobotsMathNode
@@ -18,9 +19,12 @@ class MatrixHandler:
     def Update_laplacian_matrix(self,score,i,j):
         self.adjacency_matrix[i,j] = score
         self.adjacency_matrix[j,i] = score
-        degree_vector = np.sum(self.adjacency_matrix, axis=1)
-        self.degree_matrix = np.diag(degree_vector)
+        self.degree_matrix = self.generate_degree_matrix(self.adjacency_matrix)
         self.laplacian_matrix = self.degree_matrix - self.adjacency_matrix
+
+    def generate_degree_matrix(self,adjacency_matrix):
+        degree_vector = np.sum(adjacency_matrix, axis=1)
+        return np.diag(degree_vector)
 
     def Get_second_eingenvalue_and_eingenvector(self):
         eigenvalues, eigenvectors = np.linalg.eigh(self.laplacian_matrix)
@@ -64,22 +68,25 @@ class MathHandler:
         for i, r1 in enumerate(robots_instance_list):
             for j, r2 in enumerate(robots_instance_list):
                 if i >= j:continue
-                score = self.calculate_connection_score(r1,r2)
+                score = self.calculate_robots_sight_score(r1,r2)
                 self.Update_laplacian_matrix(score,i,j)
 
     def calculate_distance_score(self,r1:RobotClass, r2:RobotClass):
         distance = r1.Get_distance_to(r2)
         return np.clip((self.max_robots_dist - distance)/(self.max_robots_dist),0,1)
     
-    def calculate_sight_score(self,r1:RobotClass, r2:RobotClass):
-        line = self.map_handler.Get_line_between_robots(r1,r2)
+    def calculate_robots_sight_score(self,r1:RobotClass, r2:RobotClass):
+        return self.calculate_positions_sight_score(r1.pose.position,r2.pose.position)
+
+    def calculate_positions_sight_score(self,p1, p2):
+        line = self.map_handler.Get_line_between_positions(p1,p2)
         min_obstacle_dist,_ = self.map_handler.get_line_min_dist_to_obstacle(line)
         score = (min_obstacle_dist-self.min_dist_to_wall)/(self.max_dist_to_wall-self.min_dist_to_wall)
         return np.clip(score,0,1)
     
     def calculate_connection_score(self,r1:RobotClass, r2:RobotClass):
         dist_score = self.calculate_distance_score(r1,r2)
-        sight_score = self.calculate_sight_score(r1,r2)
+        sight_score = self.calculate_robots_sight_score(r1,r2)
         return dist_score *sight_score
     
 
@@ -89,6 +96,54 @@ class MathHandler:
     * Derivative calculations
     ****************************************************************************
     '''
+
+
+
+    def Get_gradient_vector_numeric_way(self,dt):
+        gradient_vector = np.zeros((self.n_nodes*2,1))
+        counter = 0
+        for r_index in range(self.n_nodes):
+            for axis in ["x","y"]:
+                grad_param = self.Generate_numeric_Laplacian_derivative(axis,r_index,dt)
+                gradient_vector[counter,0] = grad_param
+                counter += 1
+        return gradient_vector
+
+
+    def Generate_numeric_Laplacian_derivative(self,axis:str,index:int,dt):
+        new_adjacency_matrix = copy.deepcopy(self.matrix_handler.adjacency_matrix)
+        robots_dict = [self.parent.robots_instances[robot_name] 
+                       for robot_name in self.parent.robots_list]
+        for i in range(self.n_nodes):
+            if i == index:
+                continue
+            r1:RobotClass = robots_dict[index]
+            r2:RobotClass = robots_dict[i]
+            p1 = copy.copy(r1.pose.position)
+            p2 = copy.copy(r2.pose.position)
+            if axis == "x":
+                p1.x += dt
+            elif axis == "y":
+                p1.y += dt
+            else:
+                raise Exception
+            score = self.calculate_positions_sight_score(p1,p2)
+            new_adjacency_matrix[index,i] = score
+            new_adjacency_matrix[i,index] = score
+        degree_matrix = self.matrix_handler.generate_degree_matrix(new_adjacency_matrix)
+        new_laplacian_matrix = degree_matrix - new_adjacency_matrix
+        eigenvalues, eigenvectors = np.linalg.eigh(new_laplacian_matrix)
+        new_lambda_2 = eigenvalues[1]
+        old_lambda_2,_ = self.matrix_handler.Get_second_eingenvalue_and_eingenvector()
+        return (new_lambda_2-old_lambda_2)/dt
+
+        
+            
+            
+
+
+
+
 
     def Get_gradient_vector(self):
         gradient_vector = np.zeros((self.n_nodes*2,1))
@@ -132,7 +187,7 @@ class MathHandler:
             self.compute_sight_score_derivative(r1,r2,reference,cell) * 
             self.calculate_distance_score(r1,r2) +
             self.compute_distance_score_derivate(r1,r2,reference) *
-            self.calculate_sight_score(r1,r2)
+            self.calculate_robots_sight_score(r1,r2)
         )
 
     def compute_sight_score_derivative(self,r1:RobotClass,r2:RobotClass,reference,grid_coord:Cell):
@@ -142,14 +197,31 @@ class MathHandler:
             map_gradient = self.map_handler.get_gradient_y(grid_coord)
         return self.get_lever_arm(r1,r2,grid_coord)*map_gradient*1/(self.max_dist_to_wall-self.min_dist_to_wall)
     
-    def get_lever_arm(self, r1:RobotClass, r2:RobotClass, grid_cell:Cell): 
+    def get_lever_arm(self, r1: RobotClass, r2: RobotClass, grid_cell: Cell): 
         full_dist = r1.Get_distance_to(r2)
         if full_dist < 1e-6:
             return 0.0
         world_point = self.map_handler.grid_to_world(grid_cell)
-        obst_to_p2 = np.hypot(world_point.x - r1.pose.position.x, world_point.y - r1.pose.position.y)
-        return obst_to_p2 / full_dist
+        
+        # Distância do ponto de colisão até R1
+        dist_p_to_r1 = np.hypot(world_point.x - r1.pose.position.x, world_point.y - r1.pose.position.y)
+        
+        sigma = dist_p_to_r1 / full_dist
+        
+        # Se estou derivando em relação a R1, o peso é (1 - sigma)
+        # Se o obstáculo está em R1 (sigma=0), peso é 1 (máxima influência)
+        return (1.0 - sigma)
     
+
+    # def get_lever_arm(self, r1:RobotClass, r2:RobotClass, grid_cell:Cell): 
+    #     full_dist = r1.Get_distance_to(r2)
+    #     if full_dist < 1e-6:
+    #         return 0.0
+    #     world_point = self.map_handler.grid_to_world(grid_cell)
+    #     obst_to_p2 = np.hypot(world_point.x - r1.pose.position.x, world_point.y - r1.pose.position.y)
+    #     return obst_to_p2 / full_dist
+    
+
     def compute_distance_score_derivate(self,r1:RobotClass,r2:RobotClass,reference): #derivando com respeito a p1
         dist = r1.Get_distance_to(r2)
         if reference == "x":

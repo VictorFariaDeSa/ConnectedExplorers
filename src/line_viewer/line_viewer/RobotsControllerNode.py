@@ -106,7 +106,7 @@ class RobotsControllerNode(Node):
         angular_velocity = msg.angular.z
 
         curr_robot = self.robots_instances[robot_name]
-        vx,vy = curr_robot.Linear_velocity_to_xy(linear_velocity,angular_velocity,0.15+0.15)
+        vx,vy = curr_robot.Linear_velocity_to_xy(linear_velocity,angular_velocity,0.15)
         self.velocities_vector = np.zeros((self.n_robots*2,1))
         self.velocities_vector[robot_index*2] = vx
         self.velocities_vector[robot_index*2+1] = vy
@@ -121,42 +121,145 @@ class RobotsControllerNode(Node):
             publisher = self.publishers_dict[robot_name]
             v_global = velocities_vector[2*i, 0]
             w_global = velocities_vector[2*i+1, 0]
-            v,w = robot.feedback_linearization_global_velocities_to_vw(v_global,w_global,0.15+0.15)
+            v,w = robot.feedback_linearization_global_velocities_to_vw(v_global,w_global,0.15)
             msg = Twist()
             msg.linear.x = v
             msg.angular.z = w
             publisher.publish(msg)
 
-
-
-    def get_optimized_movement_vector(self,ideal_vector):
-        lambda_2,_ = self.matrix_handler.Get_second_eingenvalue_and_eingenvector()
-        barrier_val = - self.gamma * (lambda_2-self.epsilon)
+    def get_optimized_movement_vector(self, ideal_vector):
+        lambda_2, _ = self.matrix_handler.Get_second_eingenvalue_and_eingenvector()
+        barrier_val = - self.gamma * (lambda_2 - self.epsilon)
 
         projection = (self.gradient_vector.T @ ideal_vector).item()
+        
+        # Otimização: se já satisfaz, retorna o original sem gastar tempo de solver
         if projection > barrier_val:
             return ideal_vector
-        n_vars = ideal_vector.shape[0]
 
-        u = cp.Variable((n_vars, 1))
-        objective = cp.Minimize(cp.sum_squares(u - ideal_vector))
-        max_vel = 5
+        # --- 1. Preparação (Sem achatar, mantendo matriz coluna) ---
+        ideal_col = ideal_vector.reshape(-1, 1)
+        n_vars = ideal_col.shape[0]
+
+        # --- 2. Pesos (A "Inteligência" do Soft Lock) ---
+        weights_diag = np.ones(n_vars)
+        
+        # Robô 1: Peso ALTO (10.000). 
+        # Isso força o solver a ficar COLADO no vetor do Nav2.
+        # Ele só vai desviar (mudar angulo) se os outros robôs não derem conta.
+        weights_diag[0:2] = 10000.0 
+        
+        # Outros Robôs: Peso BAIXO (0.01).
+        # É barato mover eles. Eles serão os primeiros a serem "sacrificados" para a barreira.
+        weights_diag[2:] = 0.01
+        
+        W = np.diag(weights_diag)
+
+
+
+
+        yaw_r1 = self.robots_instances["robot1"].yaw
+        yaw_r2 = self.robots_instances["robot2"].yaw
+        yaw_r3 = self.robots_instances["robot3"].yaw
+
+        s1, c1 = np.sin(yaw_r1), np.cos(yaw_r1)
+        s2, c2 = np.sin(yaw_r2), np.cos(yaw_r2)
+        s3, c3 = np.sin(yaw_r3), np.cos(yaw_r3)
+
+        # u_final representa todo mundo [vx1, vy1, vx2, vy2, ...]
+        u_final = cp.Variable((n_vars, 1))
+        
+        # Variável de folga (IMPEDE O CONGELAMENTO)
+        delta = cp.Variable((1, 1), nonneg=True)
+
+        # --- 4. Objetivo ---
+        # Minimiza: (Diferença para o Ideal) + (Penalidade do Slack)
+        # Graças ao W, a diferença do R1 pesa muito mais que a dos outros.
+        cost_movement = cp.quad_form(u_final - ideal_col, W)
+        cost_slack = 1e9 * cp.sum_squares(delta) # Peso 1 bilhão para evitar usar o slack
+        
+        objective = cp.Minimize(cost_movement + cost_slack)
+        
+        max_vel = 0.5
+        REAL_MAX_W = 1.5  
+        L_POINT = 0.2     
+        max_lateral_vel = REAL_MAX_W * L_POINT
         constraints = [
-            self.gradient_vector.T @ u >= barrier_val,
-            cp.abs(u) <= max_vel
+            # Barreira com Slack (A "Válvula de Escape")
+            self.gradient_vector.T @ u_final >= barrier_val - delta,
+            
+            # Limite Físico para TODOS
+            cp.abs(u_final) <= max_vel,
+
+            cp.abs(-u_final[0,0]*s1 + u_final[1,0]*c1) <= max_lateral_vel,
+            cp.abs(-u_final[2,0]*s2 + u_final[3,0]*c2) <= max_lateral_vel,
+            cp.abs(-u_final[4,0]*s3 + u_final[5,0]*c3) <= max_lateral_vel
         ]
+        
         problem = cp.Problem(objective, constraints)
     
         try:
             problem.solve(solver=cp.OSQP, verbose=False)
             
-            if u.value is not None:
-                return u.value
-                
+            if u_final.value is not None:
+                # Retorna no formato original (Matriz Coluna)
+                return u_final.value
+            else:
+                self.get_logger().warn("Solver Inviável")
+
         except Exception as e:
             self.get_logger().error(f"CVXPY Failed: {e}")
 
         return np.zeros_like(ideal_vector)
+
+    # def get_optimized_movement_vector(self,ideal_vector):
+    #     lambda_2,_ = self.matrix_handler.Get_second_eingenvalue_and_eingenvector()
+    #     barrier_val = - self.gamma * (lambda_2-self.epsilon)
+
+    #     projection = (self.gradient_vector.T @ ideal_vector).item()
+    #     if projection > barrier_val:
+    #         self.get_logger().info("Returning ideal vector")
+    #         return ideal_vector
+        
+        
+    #     n_vars = ideal_vector.shape[0]
+
+
+
+    #     weights_diag = np.ones(n_vars)
+    #     weights_diag[0:2] = 10.0
+    #     weights_diag[2:4] = 1.0
+    #     weights_diag[4:6] = 1.0
+    #     W = np.diag(weights_diag)
+
+
+    #     alfa = cp.Variable(nonneg=True)
+    #     vx_new = cp.reshape(alfa * ideal_vector[0], (1, 1))
+    #     vy_new = cp.reshape(alfa * ideal_vector[1], (1, 1))
+
+    #     u = cp.Variable((n_vars-2, 1))
+    #     u_final = cp.vstack([vx_new, vy_new, u])
+
+    #     objective = cp.Minimize(cp.quad_form(u_final- ideal_vector, W))
+    #     max_vel = 5
+    #     constraints = [
+    #         self.gradient_vector.T @ u_final >= barrier_val,
+    #         cp.abs(u_final) <= max_vel,
+    #         alfa <= 1.0
+    #     ]
+    #     problem = cp.Problem(objective, constraints)
+    
+    #     try:
+    #         problem.solve(solver=cp.OSQP, verbose=False)
+            
+            
+    #         if u_final.value is not None:
+    #             return u_final.value
+                
+    #     except Exception as e:
+    #         self.get_logger().error(f"CVXPY Failed: {e}")
+
+    #     return np.zeros_like(ideal_vector)
 
 
 

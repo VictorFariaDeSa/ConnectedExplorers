@@ -105,12 +105,18 @@ class MapHandler:
 
 
     def Get_line_between_robots(self, r1: RobotClass, r2: RobotClass):
-        cell_1 = self.world_to_grid(r1.pose.position)
-        cell_2 = self.world_to_grid(r2.pose.position)
+        return self.Get_line_between_positions(r1.pose.position,r2.pose.position)
+
+    
+
+    def Get_line_between_positions(self, p1, p2):
+        cell_1 = self.world_to_grid(p1)
+        cell_2 = self.world_to_grid(p2)
         if cell_1 is None or cell_2 is None:
             return None
             
         return GridLine(cell_1, cell_2)
+
 
 
     def get_line_min_dist_to_obstacle(self, grid_line:GridLine):

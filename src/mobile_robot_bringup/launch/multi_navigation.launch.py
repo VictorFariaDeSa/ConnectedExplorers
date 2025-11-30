@@ -22,11 +22,11 @@ MAX_ROBOTS_DIST = 10.0
 * User defined params
 ********************************************************************************
 '''
-# robots = [
-#     {"name":"robot1","x":"-0","y":"-2"},
-#     {"name":"robot2","x":"-2","y":"1"},
-#     {"name":"robot3","x":"-3","y":"-6"}
-# ]
+robots = [
+    {"name":"robot1","x":"-0","y":"-2"},
+    {"name":"robot2","x":"-2","y":"1"},
+    {"name":"robot3","x":"-3","y":"-6"}
+]
 
 # robots = [
 #     {"name":"robot1","x":"0","y":"-6"},
@@ -34,11 +34,11 @@ MAX_ROBOTS_DIST = 10.0
 #     {"name":"robot3","x":"-8","y":"-8"}
 # ]
 
-robots = [
-    {"name":"robot1","x":"7","y":"0"},
-    {"name":"robot2","x":"4","y":"-2"},
-    {"name":"robot3","x":"0","y":"-2"}
-]
+# robots = [
+#     {"name":"robot1","x":"7","y":"0"},
+#     {"name":"robot2","x":"4","y":"-2"},
+#     {"name":"robot3","x":"0","y":"-2"}
+# ]
 
 lifecycle_managed_nodes = ["map_server"]
 
@@ -59,7 +59,8 @@ bringup_pkg = 'mobile_robot_bringup'
 ********************************************************************************
 '''
 world_path = os.path.join(
-    get_package_share_directory(bringup_pkg), 'worlds', 'simpler.world'
+    # get_package_share_directory(bringup_pkg), 'worlds', 'simpler.world'
+    get_package_share_directory(bringup_pkg), 'worlds', 'proj_world.world'
     )
 rviz_config_file = os.path.join(
     get_package_share_directory(bringup_pkg), 'config', 'rviz_config.rviz'
@@ -91,7 +92,8 @@ nav2_bringup_dir = get_package_share_directory('nav2_bringup')
 bringup_launch_file = os.path.join(nav2_bringup_dir, 'launch', 'bringup_launch.py')
 
 map_file = os.path.join(
-    get_package_share_directory(bringup_pkg), 'maps', 'simpler_map.yaml'
+    # get_package_share_directory(bringup_pkg), 'maps', 'simpler_map.yaml'
+    get_package_share_directory(bringup_pkg), 'maps', 'my_map.yaml'   
 )
 
 '''
@@ -260,7 +262,7 @@ def generate_launch_description():
             remappings=[('cmd_vel', 'ideal_cmd_vel')] # Importante!
         )
 
-        # Nó do Navegador (Gerencia a missão)
+
         bt_navigator_node = Node(
             namespace=name,
             package='nav2_bt_navigator',
