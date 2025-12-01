@@ -93,7 +93,7 @@ class RobotsMathNode(Node):
 
     def publish_lambda_gradient(self):
         if self.math_handler:
-            lambda_gradient = self.math_handler.Get_gradient_vector_numeric_way(0.05)
+            lambda_gradient = self.math_handler.Get_gradient_vector_numeric_way(0.5)
             if lambda_gradient is None:
                 return
             msg = numpy_matrix_to_float64multArray(lambda_gradient)

@@ -4,6 +4,7 @@ from .RobotClass import RobotClass
 from .MapHandler import MapHandler, Cell, GridLine
 from typing import TYPE_CHECKING, List
 import copy
+from geometry_msgs.msg import Point
 
 if TYPE_CHECKING:
     from .RobotsMathNode import RobotsMathNode
@@ -68,27 +69,70 @@ class MathHandler:
         for i, r1 in enumerate(robots_instance_list):
             for j, r2 in enumerate(robots_instance_list):
                 if i >= j:continue
-                score = self.calculate_robots_sight_score(r1,r2)
+                score = self.calculate_robots_connection_score(r1,r2)
                 self.Update_laplacian_matrix(score,i,j)
 
-    def calculate_distance_score(self,r1:RobotClass, r2:RobotClass):
-        distance = r1.Get_distance_to(r2)
-        return np.clip((self.max_robots_dist - distance)/(self.max_robots_dist),0,1)
+    def calculate_distance_score(self,p1:Point, p2:Point):
+        distance = np.hypot(p1.x-p2.x, p1.y-p2.y)
+        return 1/(1+np.exp(distance-6))
     
     def calculate_robots_sight_score(self,r1:RobotClass, r2:RobotClass):
         return self.calculate_positions_sight_score(r1.pose.position,r2.pose.position)
 
-    def calculate_positions_sight_score(self,p1, p2):
-        line = self.map_handler.Get_line_between_positions(p1,p2)
-        min_obstacle_dist,_ = self.map_handler.get_line_min_dist_to_obstacle(line)
-        score = (min_obstacle_dist-self.min_dist_to_wall)/(self.max_dist_to_wall-self.min_dist_to_wall)
-        return np.clip(score,0,1)
+    def calculate_positions_sight_score(self, p1, p2):
+        line = self.map_handler.Get_line_between_positions(p1, p2)
+        if line is None: return 1e-6 
+
+        min_obstacle_dist, min_cell = self.map_handler.get_line_min_dist_to_obstacle(line)
+        p_critico_world = self.map_handler.grid_to_world(min_cell)
+        
+        dx = self.map_handler.get_gradient_x(min_cell)
+        dy = self.map_handler.get_gradient_y(min_cell)
+        
+        norm = np.hypot(dx, dy)
+        if norm < 1e-6: nx, ny = 0.0, 0.0
+        else: nx, ny = dx / norm, dy / norm
+        dist_estimada = max(min_obstacle_dist, 0.0) + 0.5
+        obstacle_x = p_critico_world.x - (nx * dist_estimada)
+        obstacle_y = p_critico_world.y - (ny * dist_estimada)
+
+        v_los_x = p2.x - p1.x
+        v_los_y = p2.y - p1.y
+        
+        v_danger_x = obstacle_x - p1.x
+        v_danger_y = obstacle_y - p1.y
+        
+        cross_prod = (v_danger_x * v_los_y) - (v_danger_y * v_los_x)
+        
+        len_los = np.hypot(v_los_x, v_los_y)
+        len_danger = np.hypot(v_danger_x, v_danger_y)
+        
+        seno_abertura = 0.0
+        if len_los > 1e-3 and len_danger > 1e-3:
+            seno_abertura = abs(cross_prod) / (len_los * len_danger)
+
+        score_sdf = 1.0 / (1.0 + np.exp(-6 * (min_obstacle_dist - 0.5)))
+        
+        if min_obstacle_dist > 0.8:
+            return score_sdf
+        ganho_angular = np.clip(abs(seno_abertura), 0.0, 0.5) / 0.5
+        
+        return score_sdf
     
-    def calculate_connection_score(self,r1:RobotClass, r2:RobotClass):
-        dist_score = self.calculate_distance_score(r1,r2)
-        sight_score = self.calculate_robots_sight_score(r1,r2)
+
+    def calculate_positions_connection_score(self,p1:Point, p2:Point):
+        dist_score = self.calculate_distance_score(p1,p2)
+        sight_score = self.calculate_positions_sight_score(p1,p2)
         return dist_score *sight_score
     
+
+    def calculate_robots_connection_score(self,r1:RobotClass, r2:RobotClass):
+        p1 = r1.pose.position
+        p2 = r2.pose.position
+        return self.calculate_positions_connection_score(p1,p2)
+
+    
+
 
 
     '''
@@ -127,7 +171,7 @@ class MathHandler:
                 p1.y += dt
             else:
                 raise Exception
-            score = self.calculate_positions_sight_score(p1,p2)
+            score = self.calculate_positions_connection_score(p1,p2)
             new_adjacency_matrix[index,i] = score
             new_adjacency_matrix[i,index] = score
         degree_matrix = self.matrix_handler.generate_degree_matrix(new_adjacency_matrix)
@@ -136,95 +180,3 @@ class MathHandler:
         new_lambda_2 = eigenvalues[1]
         old_lambda_2,_ = self.matrix_handler.Get_second_eingenvalue_and_eingenvector()
         return (new_lambda_2-old_lambda_2)/dt
-
-        
-            
-            
-
-
-
-
-
-    def Get_gradient_vector(self):
-        gradient_vector = np.zeros((self.n_nodes*2,1))
-        counter = 0
-        for r_index in range(self.n_nodes):
-            for axis in ["x","y"]:
-                grad_param = self.get_lambda2_derivative_with_respect_to(axis,r_index)
-                gradient_vector[counter,0] = grad_param
-                counter += 1
-        return gradient_vector
-
-    def get_lambda2_derivative_with_respect_to(self,axis,index):
-        lambda_2, v_2 = self.matrix_handler.Get_second_eingenvalue_and_eingenvector()
-        dL_dpi = self.derivative_laplacian_matrix_with_respect_to(axis, index)
-        return v_2.T @ dL_dpi @ v_2
-
-    def derivative_laplacian_matrix_with_respect_to(self,axis:str,index:int)->np.array:
-        adjacency_matrix = self.derivate_adjacency_matrix_with_respect_to(axis,index)
-        degree_vector = np.sum(adjacency_matrix, axis=1)
-        degree_matrix = np.diag(degree_vector)
-        return degree_matrix - adjacency_matrix
-
-    def derivate_adjacency_matrix_with_respect_to(self,axis:str,index:int)->np.array:
-        new_derivative_adjacency_matrix = np.zeros((self.n_nodes,self.n_nodes))
-        for i in range(self.n_nodes):
-            if i == index:
-                continue
-            score_derivative= self.compute_score_derivative(index,i,axis)
-            new_derivative_adjacency_matrix[index,i] = score_derivative
-            new_derivative_adjacency_matrix[i,index] = score_derivative
-        return new_derivative_adjacency_matrix
-    
-    def compute_score_derivative(self,i,j,reference): #VFSA
-        robots_dict = [self.parent.robots_instances[robot_name] 
-                       for robot_name in self.parent.robots_list]
-        r1:RobotClass = robots_dict[i]
-        r2:RobotClass = robots_dict[j]
-        line:GridLine = self.map_handler.Get_line_between_robots(r1,r2)
-        _, cell = self.map_handler.get_line_min_dist_to_obstacle(line)
-        return (
-            self.compute_sight_score_derivative(r1,r2,reference,cell) * 
-            self.calculate_distance_score(r1,r2) +
-            self.compute_distance_score_derivate(r1,r2,reference) *
-            self.calculate_robots_sight_score(r1,r2)
-        )
-
-    def compute_sight_score_derivative(self,r1:RobotClass,r2:RobotClass,reference,grid_coord:Cell):
-        if reference == "x":
-            map_gradient = self.map_handler.get_gradient_x(grid_coord)
-        elif reference == "y":
-            map_gradient = self.map_handler.get_gradient_y(grid_coord)
-        return self.get_lever_arm(r1,r2,grid_coord)*map_gradient*1/(self.max_dist_to_wall-self.min_dist_to_wall)
-    
-    def get_lever_arm(self, r1: RobotClass, r2: RobotClass, grid_cell: Cell): 
-        full_dist = r1.Get_distance_to(r2)
-        if full_dist < 1e-6:
-            return 0.0
-        world_point = self.map_handler.grid_to_world(grid_cell)
-        
-        # Distância do ponto de colisão até R1
-        dist_p_to_r1 = np.hypot(world_point.x - r1.pose.position.x, world_point.y - r1.pose.position.y)
-        
-        sigma = dist_p_to_r1 / full_dist
-        
-        # Se estou derivando em relação a R1, o peso é (1 - sigma)
-        # Se o obstáculo está em R1 (sigma=0), peso é 1 (máxima influência)
-        return (1.0 - sigma)
-    
-
-    # def get_lever_arm(self, r1:RobotClass, r2:RobotClass, grid_cell:Cell): 
-    #     full_dist = r1.Get_distance_to(r2)
-    #     if full_dist < 1e-6:
-    #         return 0.0
-    #     world_point = self.map_handler.grid_to_world(grid_cell)
-    #     obst_to_p2 = np.hypot(world_point.x - r1.pose.position.x, world_point.y - r1.pose.position.y)
-    #     return obst_to_p2 / full_dist
-    
-
-    def compute_distance_score_derivate(self,r1:RobotClass,r2:RobotClass,reference): #derivando com respeito a p1
-        dist = r1.Get_distance_to(r2)
-        if reference == "x":
-            return (r1.pose.position.x-r2.pose.position.x)/dist * (-1/self.max_robots_dist)
-        elif reference == "y":
-            return (r1.pose.position.y-r2.pose.position.y)/dist * (-1/self.max_robots_dist)

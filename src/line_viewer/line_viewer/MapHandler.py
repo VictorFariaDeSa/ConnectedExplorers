@@ -76,8 +76,11 @@ class MapHandler:
         width = self.map_info.width
         height = self.map_info.height
         grid = np.array(self.map_data).reshape((height, width))
-        binary_map = np.where((grid > 90) | (grid < 0), 0, 1)
-        self.dist_transform = distance_transform_edt(binary_map) * self.map_info.resolution
+        mask_free = np.where((grid > 90) | (grid < 0), 0, 1)
+        dist_to_obstacle = distance_transform_edt(mask_free)
+        mask_obstacle = 1 - mask_free
+        dist_to_free = distance_transform_edt(mask_obstacle)
+        self.dist_transform = (dist_to_obstacle - dist_to_free) * self.map_info.resolution
         dy, dx = np.gradient(self.dist_transform, self.map_info.resolution)
         self.dist_transform_y_derivative = dy
         self.dist_transform_x_derivative = dx

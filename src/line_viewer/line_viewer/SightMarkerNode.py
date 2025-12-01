@@ -93,7 +93,7 @@ class SightMarkerNode(Node):
 
     def get_marker_color(self,score):
         score = abs(score)
-        if score == 0:
+        if score < 1/(1+np.exp(-3*(0-1))):
             rgb_color = (1.0, 0.0, 0.0)
         else:         
             r_val = 1.0 - score
