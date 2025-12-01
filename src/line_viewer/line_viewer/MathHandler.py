@@ -5,6 +5,7 @@ from .MapHandler import MapHandler, Cell, GridLine
 from typing import TYPE_CHECKING, List
 import copy
 from geometry_msgs.msg import Point
+import matplotlib.pyplot as plt
 
 if TYPE_CHECKING:
     from .RobotsMathNode import RobotsMathNode
@@ -45,16 +46,20 @@ class MatrixHandler:
 
 class MathHandler:
     def __init__(self,
-        parent:'RobotsMathNode'
+        parent:'RobotsMathNode',
+        distance_score_scale,
+        distance_score_offset,
+        sight_score_scale,
+        sight_score_offset
     ):
         self.n_nodes = len(parent.robots_list)
         self.matrix_handler = MatrixHandler(self.n_nodes)
-        self.max_robots_dist = parent.max_robots_dist
         self.map_handler = parent.map_handler
-        self.min_dist_to_wall = parent.min_dist_to_wall
-        self.max_dist_to_wall = parent.max_dist_to_wall
         self.parent = parent
-
+        self.distance_score_scale = distance_score_scale
+        self.distance_score_offset = distance_score_offset
+        self.sight_score_scale = sight_score_scale
+        self.sight_score_offset = sight_score_offset
 
     def Update_laplacian_matrix(self,score,i,j):
         return self.matrix_handler.Update_laplacian_matrix(score,i,j)
@@ -84,41 +89,83 @@ class MathHandler:
         if line is None: return 1e-6 
 
         min_obstacle_dist, min_cell = self.map_handler.get_line_min_dist_to_obstacle(line)
-        p_critico_world = self.map_handler.grid_to_world(min_cell)
-        
-        dx = self.map_handler.get_gradient_x(min_cell)
-        dy = self.map_handler.get_gradient_y(min_cell)
-        
-        norm = np.hypot(dx, dy)
-        if norm < 1e-6: nx, ny = 0.0, 0.0
-        else: nx, ny = dx / norm, dy / norm
-        dist_estimada = max(min_obstacle_dist, 0.0) + 0.5
-        obstacle_x = p_critico_world.x - (nx * dist_estimada)
-        obstacle_y = p_critico_world.y - (ny * dist_estimada)
-
-        v_los_x = p2.x - p1.x
-        v_los_y = p2.y - p1.y
-        
-        v_danger_x = obstacle_x - p1.x
-        v_danger_y = obstacle_y - p1.y
-        
-        cross_prod = (v_danger_x * v_los_y) - (v_danger_y * v_los_x)
-        
-        len_los = np.hypot(v_los_x, v_los_y)
-        len_danger = np.hypot(v_danger_x, v_danger_y)
-        
-        seno_abertura = 0.0
-        if len_los > 1e-3 and len_danger > 1e-3:
-            seno_abertura = abs(cross_prod) / (len_los * len_danger)
-
         score_sdf = 1.0 / (1.0 + np.exp(-6 * (min_obstacle_dist - 0.5)))
-        
-        if min_obstacle_dist > 0.8:
-            return score_sdf
-        ganho_angular = np.clip(abs(seno_abertura), 0.0, 0.5) / 0.5
+
         
         return score_sdf
     
+
+
+    def generate_sigmoid_score_chart(self,title,xlabel,ylabel,scale,offset,path):
+        sight_equation = lambda x: 1 / (1 + np.exp(scale * (x - offset)))
+
+        visual_span = 5.0 / abs(scale)
+
+        x_min = offset - visual_span
+        x_max = offset + visual_span
+
+        x = np.linspace(x_min, x_max, 500)
+        y = sight_equation(x)
+
+        fig, ax = plt.subplots(figsize=(16, 10))
+
+        ax.plot(x, y, linewidth=4, color='#007ACC')
+
+        ax.set_title(title, pad=20, fontweight='bold', color='#333333', size=20)
+        ax.set_xlabel(xlabel, labelpad=15, size=15)
+        ax.set_ylabel(ylabel, labelpad=15, size=15)
+
+        equation_text = rf'$f(x) = \frac{{1}}{{1 + e^{{{scale}(x - {offset})}}}}$'
+        
+        if (scale > 0):
+            box_ypos = 0.1
+        else:
+            box_ypos = 0.9
+
+        ax.text(0.05, box_ypos, equation_text, transform=ax.transAxes, fontsize=22,
+                bbox=dict(facecolor='white', alpha=0.8, edgecolor='#cccccc', boxstyle='round,pad=0.5'))
+
+        ax.grid(True, which='major', linestyle='--', alpha=0.6)
+        ax.minorticks_on()
+        ax.grid(True, which='minor', linestyle=':', alpha=0.3)
+        
+        ax.set_xlim([x_min - 0.05 * (x_max - x_min), x_max])
+        ax.set_ylim([-0.05, 1.05])
+
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+        fig.savefig(path, dpi=300, bbox_inches='tight')
+
+        plt.close(fig)
+
+
+    def generate_sight_score_chart(self, path):
+        return self.generate_sigmoid_score_chart(
+            'Sight Score Calculation Curve',
+            'Distance Line x Obstacle [m]',
+            'Sight Score',
+            self.sight_score_scale,
+            self.sight_score_offset,
+            path
+        )
+
+    def generate_distance_score_chart(self, path):
+        return self.generate_sigmoid_score_chart(
+            'Distance Score Calculation Curve',
+            'Distance between robots [m]',
+            'Distance Score',
+            self.distance_score_scale,
+            self.distance_score_offset,
+            path
+        )
+
+
+
+
+
+
+
 
     def calculate_positions_connection_score(self,p1:Point, p2:Point):
         dist_score = self.calculate_distance_score(p1,p2)

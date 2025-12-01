@@ -23,14 +23,17 @@ class RobotsMathNode(Node):
         self.robots_list = self.get_parameter("robots_list").value
         self.robots_list = [] if self.robots_list == [''] else self.robots_list
 
-        self.declare_parameter("max_robots_dist", 5.0)
-        self.max_robots_dist = self.get_parameter("max_robots_dist").value
+        self.declare_parameter("sight_score_offset", 0.5)
+        self.sight_score_offset = self.get_parameter("sight_score_offset").value
 
-        self.declare_parameter("min_dist_to_wall", 0.1)
-        self.min_dist_to_wall = self.get_parameter("min_dist_to_wall").value
+        self.declare_parameter("sight_score_scale", -6.0)
+        self.sight_score_scale = self.get_parameter("sight_score_scale").value
 
-        self.declare_parameter("max_dist_to_wall", 1.0)
-        self.max_dist_to_wall = self.get_parameter("max_dist_to_wall").value
+        self.declare_parameter("distance_score_offset", 6.0)
+        self.distance_score_offset = self.get_parameter("distance_score_offset").value
+
+        self.declare_parameter("distance_score_scale", 1.0)
+        self.distance_score_scale = self.get_parameter("distance_score_scale").value
 
         self.declare_parameter("laplacian_topic_name", "laplacian_matrix")
         self.laplacian_topic_name = self.get_parameter("laplacian_topic_name").value
@@ -83,6 +86,7 @@ class RobotsMathNode(Node):
         )
         self.gradient_timer = self.create_timer(0.1, self.publish_lambda_gradient)
 
+
     def publish_laplacian_matrix(self):
         if self.math_handler:
             laplacian_matrix = self.math_handler.Get_laplacian_matrix()
@@ -118,7 +122,10 @@ class RobotsMathNode(Node):
         self.map_handler.generate_gradient_colormap("/home/victor/projects/final_proj_MR/images/map_x.png","x")
         self.map_handler.generate_gradient_colormap("/home/victor/projects/final_proj_MR/images/map_y.png","y")
 
-        self.math_handler = MathHandler(self)
+        self.math_handler = MathHandler(self,self.distance_score_scale,self.distance_score_offset,self.sight_score_scale,self.sight_score_offset)
+        self.math_handler.generate_sight_score_chart("/home/victor/projects/final_proj_MR/images/sight_score.png")
+        self.math_handler.generate_distance_score_chart("/home/victor/projects/final_proj_MR/images/distance_score.png")
+
 
 def main(args=None):
     rclpy.init(args=args)

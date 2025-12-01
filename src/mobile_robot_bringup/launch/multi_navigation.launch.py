@@ -13,13 +13,22 @@ from ament_index_python.packages import get_package_share_directory
 from launch_ros.actions import Node, PushRosNamespace
 from launch.substitutions import Command
 
+'''
+********************************************************************************
+* User defined params
+********************************************************************************
+'''
+# SCORE CALCULATIONS
+SIGHT_SCORE_OFFSET = 0.5
+SIGHT_SCORE_SCALE = -6.0
 
-MAX_ROBOTS_DIST = 10.0
+DISTANCE_SCORE_OFFSET = 6.0
+DISTANCE_SCORE_SCALE = 1.0
 
 
 '''
 ********************************************************************************
-* User defined params
+* Robots list
 ********************************************************************************
 '''
 robots = [
@@ -318,9 +327,10 @@ def generate_launch_description():
         name="RobotsMathNode",
         parameters=[
             {"robots_list":get_all_robot_names(robots)},
-            {"max_robots_dist":MAX_ROBOTS_DIST},
-            {"min_dist_to_wall":0.1},
-            {"max_dist_to_wall":1.0},
+            {"sight_score_offset":      SIGHT_SCORE_OFFSET},
+            {"sight_score_scale":       SIGHT_SCORE_SCALE},
+            {"distance_score_offset":   DISTANCE_SCORE_OFFSET},
+            {"distance_score_scale":    DISTANCE_SCORE_SCALE},
             {"laplacian_topic_name":"laplacian_matrix"},
 
         ]
