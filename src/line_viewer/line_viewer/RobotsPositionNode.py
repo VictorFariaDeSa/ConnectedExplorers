@@ -42,6 +42,10 @@ class RobotsPositionNode(Node):
             pos = self.get_robot_position(robot_name)
             if pos:
                 publisher.publish(pos)
+            else:
+                self.get_logger().warn(
+                    f"Failed to get TF for {robot_name}/base_link from {self.reference_frame}"
+                )
 
     def get_robot_position(self, robot_name):
         target_frame = f"{robot_name}/base_link"

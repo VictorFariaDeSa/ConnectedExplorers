@@ -2,6 +2,8 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from visualization_msgs.msg import Marker
+from std_msgs.msg import ColorRGBA # Necessário para cores por vértice
+from geometry_msgs.msg import Point
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from .RobotClass import RobotClass
 from geometry_msgs.msg import Pose
@@ -14,7 +16,7 @@ from .Ros2Utils import float64multArray_to_numpy_matrix
 
 class SightMarkerNode(Node):
     def __init__(self):
-        super().__init__('gazebo_line_publisher')
+        super().__init__('sight_marker_node')
         robot_list_descriptor = ParameterDescriptor(type=ParameterType.PARAMETER_STRING_ARRAY)
         
         self.declare_parameter("reference_frame", "map")
@@ -32,6 +34,7 @@ class SightMarkerNode(Node):
         self.declare_parameter("robots_list", [''], robot_list_descriptor)
         self.robots_list = self.get_parameter("robots_list").value
         self.robots_list = [] if self.robots_list == [''] else self.robots_list
+        
         self.laplacian_matrix = None
         self.subscriptions_dict = {}
         self.robots_instances:Dict[str, RobotClass] = {}
@@ -64,8 +67,6 @@ class SightMarkerNode(Node):
             )
         self.timer = self.create_timer(0.1, self.publish_markers)
 
-    
-
     def laplacian_matrix_cb(self,msg):
         self.laplacian_matrix = float64multArray_to_numpy_matrix(msg)
 
@@ -73,51 +74,75 @@ class SightMarkerNode(Node):
         robot_name = self.robots_list[robot_index] 
         self.robots_instances[robot_name].Set_pose(msg)
 
-
-
     def publish_markers(self):
         if self.laplacian_matrix is None:
-            self.get_logger().info("Laplacian matrix in null")
             return
-            
+
+        rows, cols = self.laplacian_matrix.shape
+        num_robots = len(self.robots_list)
+        if rows != num_robots or cols != num_robots:
+            return
+
+        marker = Marker()
+        marker.header.frame_id = self.reference_frame
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = "sight_lines"
+        marker.id = 0 
+        marker.type = Marker.LINE_LIST
+        marker.action = Marker.ADD
+        
+        marker.scale.x = float(self.line_scale)
+        
+        marker.pose.orientation.w = 1.0
+
+        marker.points = []
+        marker.colors = []
+
         for i, r_name_1 in enumerate(self.robots_list):
             for j, r_name_2 in enumerate(self.robots_list):
-                if i >= j:continue
+                if i >= j:
+                    continue
+
                 r1 = self.robots_instances[r_name_1]
                 r2 = self.robots_instances[r_name_2]
+                
                 score = self.laplacian_matrix[i, j]
-                color = self.get_marker_color(score)
-                marker = self.create_marker_between_robots(r1,r2,color)
-                self.marker_publisher.publish(marker)
+                
+                rgb = self.get_marker_color(score)
+
+                color_msg = ColorRGBA()
+                color_msg.r = float(rgb[0])
+                color_msg.g = float(rgb[1])
+                color_msg.b = float(rgb[2])
+                color_msg.a = float(self.line_alpha)
 
 
-    def get_marker_color(self,score):
+                p1 = r1.pose.position
+                marker.points.append(p1)
+                marker.colors.append(color_msg)
+                
+                p2 = r2.pose.position
+                marker.points.append(p2)
+                marker.colors.append(color_msg)
+
+
+        self.marker_publisher.publish(marker)
+
+
+    def get_marker_color(self, score):
         score = abs(score)
-        if score < 1/(1+np.exp(-3*(0-1))):
+        threshold = 1/(1+np.exp(-3*(0-1)))
+        
+        if score < threshold:
             rgb_color = (1.0, 0.0, 0.0)
         else:         
             r_val = 1.0 - score
             g_val = 1.0 
             b_val = 0.0
+            r_val = max(0.0, min(1.0, r_val))
             rgb_color = (r_val, g_val, b_val)
+            
         return rgb_color
-
-    def create_marker_between_robots(self,r1:RobotClass, r2:RobotClass, rgb_color):
-        marker = Marker()
-        marker.header.frame_id = self.reference_frame
-        marker.header.stamp = self.get_clock().now().to_msg()
-        marker.ns = "sight_marker"
-        marker.id = hash(frozenset([r1.name, r2.name])) % 1000
-        marker.type = Marker.LINE_LIST
-        marker.action = Marker.ADD
-
-        marker.color.r, marker.color.g, marker.color.b = rgb_color
-        marker.color.a = float(self.line_alpha)
-        marker.scale.x = float(self.line_scale)
-        
-        marker.points = [r1.pose.position, r2.pose.position]
-        return marker
-
 
 def main(args=None):
     rclpy.init(args=args)

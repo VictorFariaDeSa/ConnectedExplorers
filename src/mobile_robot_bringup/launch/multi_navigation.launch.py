@@ -12,6 +12,7 @@ from launch.actions import IncludeLaunchDescription, GroupAction, TimerAction
 from ament_index_python.packages import get_package_share_directory
 from launch_ros.actions import Node, PushRosNamespace
 from launch.substitutions import Command
+import json
 
 '''
 ********************************************************************************
@@ -32,9 +33,10 @@ DISTANCE_SCORE_SCALE = 1.0
 ********************************************************************************
 '''
 robots = [
-    {"name":"robot1","x":"-0","y":"-2"},
-    {"name":"robot2","x":"-2","y":"1"},
-    {"name":"robot3","x":"-3","y":"-6"}
+    {"name":"robot1","x":"-0","y":"-2","function":"task"},
+    {"name":"robot2","x":"-2","y":"1","function":"conn"},
+    {"name":"robot3","x":"-3","y":"-6","function":"conn"},
+    {"name":"robot4","x":"-2","y":"8","function":"conn"}
 ]
 
 # robots = [
@@ -53,6 +55,12 @@ lifecycle_managed_nodes = ["map_server"]
 
 def get_all_robot_names(robots):
     return [robot["name"] for robot in robots ]
+
+def get_robots_functions(robots):
+    robots_dict = {robot["name"]:robot["function"] for robot in robots}
+    return json.dumps(robots_dict)
+
+
 
 '''
 ********************************************************************************
@@ -142,7 +150,14 @@ def generate_launch_description():
     )
     launch_nodes.append(launch_gazebo_node)
 
-
+    gazebo_bridge_node = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='ros_gz_bridge',
+        parameters=[{'config_file': gazebo_config_path}],
+        output='screen'
+    )
+    launch_nodes.append(gazebo_bridge_node)
     '''
     ****************************************************************************
     * RVIZ
@@ -289,11 +304,17 @@ def generate_launch_description():
         lifecycle_managed_nodes.append(f"{name}/bt_navigator")
 
         delayed_nav_nodes = TimerAction(
-            period=7.0, 
-            actions=[pose_node, amcl_node, planner_node, controller_node,behavior_node,bt_navigator_node]
+            period=10.0, 
+            actions=[amcl_node, planner_node, controller_node,behavior_node,bt_navigator_node]
+        )
+
+        delayed_pose_node = TimerAction(
+            period=20.0, 
+            actions=[pose_node]
         )
         
         launch_nodes.append(delayed_nav_nodes)
+        launch_nodes.append(delayed_pose_node)
         
     lifecycle_manager_node = Node(
         package="nav2_lifecycle_manager",
@@ -307,7 +328,11 @@ def generate_launch_description():
             {"node_names":lifecycle_managed_nodes},
         ]
     )
-    launch_nodes.append(lifecycle_manager_node) #tavlez adicionar um delay aqui
+    delayed_lifecycle_manager = TimerAction(
+        period=15.0, 
+        actions=[lifecycle_manager_node]
+    )
+    launch_nodes.append(delayed_lifecycle_manager)
     
 
     marker_node = Node(
@@ -355,28 +380,22 @@ def generate_launch_description():
         executable="RobotsControllerNode",
         name="RobotsControllerNode",
         parameters=[
-            {"robots_list":get_all_robot_names(robots)}
+            {"robots_list":get_all_robot_names(robots)},
+            {'robots_function_map': get_robots_functions(robots)}
         ]
     )
     launch_nodes.append(marker_node)
 
-    data_node = Node(
-        package="line_viewer",
-        executable="DataRecorderNode",
-        name="DataRecorderNode",
-        parameters=[
-            {"robots_list":get_all_robot_names(robots)}
-        ]
-    )
-    launch_nodes.append(data_node)
+    # data_node = Node(
+    #     package="line_viewer",
+    #     executable="DataRecorderNode",
+    #     name="DataRecorderNode",
+    #     parameters=[
+    #         {"robots_list":get_all_robot_names(robots)}
+    #     ]
+    # )
+    # launch_nodes.append(data_node)
 
-    gazebo_bridge_node = Node(
-        package='ros_gz_bridge',
-        executable='parameter_bridge',
-        name='ros_gz_bridge',
-        parameters=[{'config_file': gazebo_config_path}],
-        output='screen'
-    )
-    launch_nodes.append(gazebo_bridge_node)
+
 
     return LaunchDescription(launch_nodes)
