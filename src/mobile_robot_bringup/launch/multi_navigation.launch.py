@@ -364,6 +364,9 @@ def generate_launch_description():
         package="line_viewer",
         executable="DataRecorderNode",
         name="DataRecorderNode",
+        parameters=[
+            {"robots_list":get_all_robot_names(robots)}
+        ]
     )
     launch_nodes.append(data_node)
 
