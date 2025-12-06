@@ -4,7 +4,7 @@ from functools import partial
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from rclpy.qos import QoSProfile
 from typing import Dict
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64MultiArray, Float64
 
 from .RobotClass import RobotClass
 from .MapHandler import MapHandler
@@ -86,6 +86,20 @@ class RobotsMathNode(Node):
         )
         self.gradient_timer = self.create_timer(0.1, self.publish_lambda_gradient)
 
+        self.fiedler_publisher = self.create_publisher(
+            Float64,
+            "/fiedler_value", 
+            qos
+        )
+        self.laplacian_timer = self.create_timer(0.1, self.publish_fiedler)
+
+
+    def publish_fiedler(self):
+        if self.math_handler:
+            fiedler,v = self.math_handler.get_second_eingenvalue_and_eingenvector()
+            msg = Float64()
+            msg.data = float(fiedler)         
+            self.fiedler_publisher.publish(msg)
 
     def publish_laplacian_matrix(self):
         if self.math_handler:

@@ -360,7 +360,12 @@ def generate_launch_description():
     )
     launch_nodes.append(marker_node)
 
-
+    data_node = Node(
+        package="line_viewer",
+        executable="DataRecorderNode",
+        name="DataRecorderNode",
+    )
+    launch_nodes.append(data_node)
 
     gazebo_bridge_node = Node(
         package='ros_gz_bridge',
