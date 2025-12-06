@@ -128,48 +128,63 @@ class RobotsControllerNode(Node):
 
 
 
+    def get_collision_safe(self, safe_dist):
+        positions = [self.robots_instances[robot_name].pose.position for robot_name in self.robots_list]
+        min_dist_found = float('inf')   
 
+        for i in range(len(positions)):
+            for j in range(i + 1, len(positions)):
+                p_i = positions[i]
+                p_j = positions[j]
+                d = np.hypot(p_i.x - p_j.x, p_i.y - p_j.y)
+                if d < min_dist_found:
+                    min_dist_found = d
 
+        return min_dist_found > safe_dist
+    
     def get_optimized_movement_vector(self, ideal_vector):
         V_rec = 0.95 
         
         lambda_2, _ = self.matrix_handler.Get_second_eingenvalue_and_eingenvector()
-        barrier_val = - self.gamma * (lambda_2 - self.epsilon)
+        conn_barrier_val = - self.gamma * (lambda_2 - self.epsilon)
 
         projection = (self.gradient_vector.T @ ideal_vector).item()
         
-        if projection >= barrier_val:
-            return ideal_vector
-
+        collision_safe = self.get_collision_safe(1)
         
+
+        if projection >= conn_barrier_val and collision_safe:
+            return ideal_vector
         ideal_col = ideal_vector.reshape(-1, 1).copy()
         n_vars = ideal_col.shape[0]
-        grad_vec_1d = self.gradient_vector.T[0]
-        
-        idx_R2 = 2
-        idx_R3 = 4
+        if (not projection >= conn_barrier_val):
+            
+            grad_vec_1d = self.gradient_vector.T[0]
+            
+            idx_R2 = 2
+            idx_R3 = 4
 
-        # Calcula a magnitude do gradiente (Potencial de ganho de Lambda2)
-        mag_R2 = np.linalg.norm(grad_vec_1d[idx_R2 : idx_R2 + 2])
-        mag_R3 = np.linalg.norm(grad_vec_1d[idx_R3 : idx_R3 + 2])
-        
-        idx_winner = -1
-        mag_winner = 0.0
+            # Calcula a magnitude do gradiente (Potencial de ganho de Lambda2)
+            mag_R2 = np.linalg.norm(grad_vec_1d[idx_R2 : idx_R2 + 2])
+            mag_R3 = np.linalg.norm(grad_vec_1d[idx_R3 : idx_R3 + 2])
+            
+            idx_winner = -1
+            mag_winner = 0.0
 
-        if mag_R2 > 1e-6 or mag_R3 > 1e-6:
-            if mag_R2 >= mag_R3:
-                idx_winner = idx_R2
-                mag_winner = mag_R2
-            else:
-                idx_winner = idx_R3
-                mag_winner = mag_R3
+            if mag_R2 > 1e-6 or mag_R3 > 1e-6:
+                if mag_R2 >= mag_R3:
+                    idx_winner = idx_R2
+                    mag_winner = mag_R2
+                else:
+                    idx_winner = idx_R3
+                    mag_winner = mag_R3
 
-        
-        if idx_winner != -1:
-            grad_dir = grad_vec_1d[idx_winner : idx_winner + 2]
-            direction = grad_dir / mag_winner
-            u_guide = direction * V_rec
-            ideal_col[idx_winner : idx_winner + 2, 0] = u_guide
+            
+            if idx_winner != -1:
+                grad_dir = grad_vec_1d[idx_winner : idx_winner + 2]
+                direction = grad_dir / mag_winner
+                u_guide = direction * V_rec
+                ideal_col[idx_winner : idx_winner + 2, 0] = u_guide
 
 
         weights_diag = np.ones(n_vars)
@@ -199,13 +214,42 @@ class RobotsControllerNode(Node):
         s3, c3 = np.sin(yaw_r3), np.cos(yaw_r3)
         
         constraints = [
-            self.gradient_vector.T @ u_final >= barrier_val - delta,
+            self.gradient_vector.T @ u_final >= conn_barrier_val - delta,
             cp.abs(u_final) <= max_vel,
             cp.abs(-u_final[0,0]*s1 + u_final[1,0]*c1) <= max_lateral_vel,
             cp.abs(-u_final[2,0]*s2 + u_final[3,0]*c2) <= max_lateral_vel,
             cp.abs(-u_final[4,0]*s3 + u_final[5,0]*c3) <= max_lateral_vel
         ]
         
+        positions = [self.robots_instances[robot_name].pose.position for robot_name in self.robots_list]
+        for i in range(len(positions)):
+            for j in range(i + 1, len(positions)): 
+                p_i = positions[i]
+                p_j = positions[j]
+                
+                dx = p_i.x - p_j.x
+                dy = p_i.y - p_j.y
+                
+                dist = np.hypot(dx, dy)
+
+                if dist < 1.5:
+                    if dist > 0.01:
+                        nx = dx / dist
+                        ny = dy / dist
+                    else:
+                        nx, ny = 1.0, 0.0 
+
+                    n_vec = np.array([[nx, ny]]) 
+
+                    ui_var = u_final[2*i : 2*i+2]
+                    uj_var = u_final[2*j : 2*j+2]
+
+                    h = dist - 1
+                    constraints.append(
+                        n_vec @ (ui_var - uj_var) >= -1 * h
+                    )
+
+
         problem = cp.Problem(objective, constraints)
 
         try:

@@ -85,12 +85,19 @@ class MapHandler:
         self.dist_transform_y_derivative = dy
         self.dist_transform_x_derivative = dx
 
-    def generate_distances_colormap(self,path):
+    def generate_distances_colormap(self, path):
         plt.figure(figsize=(10, 10))
-        plt.imshow(self.dist_transform, cmap='jet', origin='lower') 
-        plt.colorbar(label='Distância até a parede (m)')
-        plt.title('Transformada de Distância Euclidiana (EDT)')
-        plt.savefig(path)
+        plt.imshow(self.dist_transform, cmap='jet', origin='lower')
+        
+        cbar = plt.colorbar()
+        cbar.set_label('Distance to wall [m]', fontsize=18)
+        cbar.ax.tick_params(labelsize=14)
+        
+        plt.title('Euclidian distance transform (EDT)', fontsize=22, fontweight='bold', pad=18)
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+        
+        plt.savefig(path, dpi=300, bbox_inches='tight')
         plt.close()
 
     def generate_gradient_colormap(self,path,axis):
