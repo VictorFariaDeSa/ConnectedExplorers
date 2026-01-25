@@ -24,18 +24,19 @@ def main():
     rclpy.init()
 
     nav1 = BasicNavigator(namespace='robot1')
-    nav4 = BasicNavigator(namespace='robot4')
+    nav2 = BasicNavigator(namespace='robot2')
+
 
     nav1.waitUntilNav2Active()
-    nav4.waitUntilNav2Active()
+    nav2.waitUntilNav2Active()
 
-    goal1 = create_pose(nav1, 6.0, 0.0, 0.0)
-    goal4 = create_pose(nav4, 3.0, 0.0, 0.0)
+    goal1 = create_pose(nav1, 5.0, 3.0, 0.0)
+    goal2 = create_pose(nav2, -3.0, -6.0, 0.0)
 
     nav1.goToPose(goal1)
-    nav4.goToPose(goal4)
+    nav2.goToPose(goal2)
 
-    while not nav1.isTaskComplete() or not nav4.isTaskComplete():
+    while not nav1.isTaskComplete() or not nav2.isTaskComplete():
         pass
 
     print("Tarefas finalizadas!")
@@ -45,10 +46,10 @@ def main():
     else:
         print("Robot 1 falhou/cancelado")
         
-    if nav4.getResult() == TaskResult.SUCCEEDED:
-        print("Robot 4 chegou!")
+    if nav2.getResult() == TaskResult.SUCCEEDED:
+        print("Robot 2 chegou!")
     else:
-        print("Robot 4 falhou/cancelado")
+        print("Robot 2 falhou/cancelado")
 
     rclpy.shutdown()
 

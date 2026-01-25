@@ -32,24 +32,50 @@ DISTANCE_SCORE_SCALE = 1.0
 * Robots list
 ********************************************************************************
 '''
+
+
+# Scenario 01:
+
+# robots = [
+#     {"name":"robot1","x":"-6","y":"-1","function":"task"},
+#     {"name":"robot2","x":"-6","y":"1","function":"task"},
+#     {"name":"robot3","x":"-7","y":"0","function":"conn"},
+# ]
+# world_name = 'empty.world'
+# map_name = 'empty_world.yaml'
+
+
+# Scenario 02:
+
+# robots = [
+#     {"name":"robot1","x":"-0","y":"-2","function":"task"},
+#     {"name":"robot2","x":"-2","y":"1","function":"conn"},
+#     {"name":"robot3","x":"-3","y":"-6","function":"conn"},
+# ]
+# world_name = 'proj_world.world'
+# map_name = 'my_map.yaml'
+
+# Scenario 03:
+
 robots = [
-    {"name":"robot1","x":"-0","y":"-2","function":"task"},
-    {"name":"robot2","x":"-2","y":"1","function":"conn"},
-    {"name":"robot3","x":"-3","y":"-6","function":"conn"},
-    {"name":"robot4","x":"-2","y":"8","function":"conn"}
+    {"name":"robot1","x":"-6","y":"7.5","function":"task"},
+    {"name":"robot2","x":"-6","y":"8.5","function":"task"},
+    {"name":"robot3","x":"-7","y":"7.5","function":"conn"},
+    {"name":"robot4","x":"-7","y":"8.5","function":"conn"},
 ]
+world_name = 'proj_world.world'
+map_name = 'my_map.yaml'
+
+# # Scenario 04:
 
 # robots = [
-#     {"name":"robot1","x":"0","y":"-6"},
-#     {"name":"robot2","x":"-4","y":"-8"},
-#     {"name":"robot3","x":"-8","y":"-8"}
+#     {"name":"robot1","x":"-6","y":"7.5","function":"task"},
+#     {"name":"robot2","x":"-6","y":"8.5","function":"task"},
+#     {"name":"robot3","x":"-7","y":"7.5","function":"conn"},
+#     {"name":"robot4","x":"-7","y":"8.5","function":"conn"},
 # ]
-
-# robots = [
-#     {"name":"robot1","x":"7","y":"0"},
-#     {"name":"robot2","x":"4","y":"-2"},
-#     {"name":"robot3","x":"0","y":"-2"}
-# ]
+# world_name = 'proj_world.world'
+# map_name = 'my_map.yaml'
 
 lifecycle_managed_nodes = ["map_server"]
 
@@ -77,7 +103,7 @@ bringup_pkg = 'mobile_robot_bringup'
 '''
 world_path = os.path.join(
     # get_package_share_directory(bringup_pkg), 'worlds', 'simpler.world'
-    get_package_share_directory(bringup_pkg), 'worlds', 'proj_world.world'
+    get_package_share_directory(bringup_pkg), 'worlds', world_name
     )
 rviz_config_file = os.path.join(
     get_package_share_directory(bringup_pkg), 'config', 'rviz_config.rviz'
@@ -110,7 +136,7 @@ bringup_launch_file = os.path.join(nav2_bringup_dir, 'launch', 'bringup_launch.p
 
 map_file = os.path.join(
     # get_package_share_directory(bringup_pkg), 'maps', 'simpler_map.yaml'
-    get_package_share_directory(bringup_pkg), 'maps', 'my_map.yaml'   
+    get_package_share_directory(bringup_pkg), 'maps', map_name   
 )
 
 '''
@@ -386,15 +412,15 @@ def generate_launch_description():
     )
     launch_nodes.append(marker_node)
 
-    # data_node = Node(
-    #     package="line_viewer",
-    #     executable="DataRecorderNode",
-    #     name="DataRecorderNode",
-    #     parameters=[
-    #         {"robots_list":get_all_robot_names(robots)}
-    #     ]
-    # )
-    # launch_nodes.append(data_node)
+    data_node = Node(
+        package="line_viewer",
+        executable="DataRecorderNode",
+        name="DataRecorderNode",
+        parameters=[
+            {"robots_list":get_all_robot_names(robots)}
+        ]
+    )
+    launch_nodes.append(data_node)
 
 
 

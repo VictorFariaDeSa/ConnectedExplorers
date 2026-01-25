@@ -11,12 +11,19 @@ from .RobotClass import RobotClass
 from typing import Dict
 from functools import partial
 import cvxpy as cp
+import json
 
 class RobotsControllerNode(Node):
     def __init__(self):
         super().__init__('robots_controller')
         robot_list_descriptor = ParameterDescriptor(type=ParameterType.PARAMETER_STRING_ARRAY)
-        
+
+        '''
+        ************************************************************************
+        * Parameters declaration
+        ************************************************************************
+        '''
+
         self.declare_parameter("robots_list", [''], robot_list_descriptor)
         self.robots_list = self.get_parameter("robots_list").value
         self.robots_list = [] if self.robots_list == [''] else self.robots_list
@@ -30,21 +37,34 @@ class RobotsControllerNode(Node):
         self.declare_parameter("ideal_cmd_vel_topic_name", "ideal_cmd_vel")
         self.ideal_cmd_vel_topic_name= self.get_parameter("ideal_cmd_vel_topic_name").value
 
+        self.declare_parameter("robots_function_map", "{}")
+        json_str = self.get_parameter('robots_function_map').get_parameter_value().string_value
+        self.robots_functions = json.loads(json_str)
+
         self.epsilon = 0.3
-        self.gamma = 0.3
+        self.gamma = 3
 
         self.publishers_dict = {}
         self.subscriptions_dict_cmd_vel = {}
         self.subscriptions_dict_position = {}
 
-
+        self.control_timer = self.create_timer(0.05, self.control_loop)
         self.robots_instances:Dict[str, RobotClass] = {}
 
         self.n_robots = len(self.robots_list)
         self.matrix_handler = MatrixHandler(self.n_robots)
         self.gradient_vector = np.zeros((self.n_robots*2,1))
+        self.nav2_vel_vector = np.zeros((self.n_robots*2,1))
+
 
         qos = QoSProfile(depth=10)
+
+
+        '''
+        ************************************************************************
+        * Node Subscriptions
+        ************************************************************************
+        '''
 
         self.laplacian_matrix_subscriber = self.create_subscription(
             Float64MultiArray,
@@ -90,6 +110,12 @@ class RobotsControllerNode(Node):
             self.get_logger().info(f'Subscribed to: {topic_name}')
 
 
+        '''
+        ************************************************************************
+        * Node Publishers
+        ************************************************************************
+        '''
+
         for i, robot_name in enumerate(self.robots_list):
             topic_name = f"{robot_name}/cmd_vel"  
             self.publishers_dict[robot_name] =  self.create_publisher(
@@ -107,11 +133,15 @@ class RobotsControllerNode(Node):
 
         curr_robot = self.robots_instances[robot_name]
         vx,vy = curr_robot.Linear_velocity_to_xy(linear_velocity,angular_velocity,0.15)
-        self.velocities_vector = np.zeros((self.n_robots*2,1))
-        self.velocities_vector[robot_index*2] = vx
-        self.velocities_vector[robot_index*2+1] = vy
-        real_velocities_vector = self.get_optimized_movement_vector(self.velocities_vector)
-        self.send_robot_velocity(real_velocities_vector)
+        self.nav2_vel_vector[robot_index*2] = vx
+        self.nav2_vel_vector[robot_index*2+1] = vy
+
+
+    def control_loop(self):
+        has_active_input = np.any(np.abs(self.nav2_vel_vector) > 1e-4)        
+        if has_active_input:
+            real_velocities_vector = self.get_optimized_movement_vector(self.nav2_vel_vector)
+            self.send_robot_velocity(real_velocities_vector)
 
 
     def send_robot_velocity(self,velocities_vector):
@@ -152,51 +182,50 @@ class RobotsControllerNode(Node):
         
         collision_safe = self.get_collision_safe(1)
         
-
+        # Se estiver seguro e projetando positivamente, retorna o ideal
         if projection >= conn_barrier_val and collision_safe:
             return ideal_vector
+        
         ideal_col = ideal_vector.reshape(-1, 1).copy()
         n_vars = ideal_col.shape[0]
-        if (not projection >= conn_barrier_val):
-            
+        
+        # Pesos (Conn vs Task)
+        weights_diag = np.ones(n_vars)
+        for i,robot_name in enumerate(self.robots_list):
+            idx = i*2 
+            if self.robots_functions[robot_name] == "conn":
+                weights_diag[idx : idx + 2] = 0.01              
+            else:
+                weights_diag[idx : idx + 2] = 10.0 
+        
+        # Lógica de guia para conectividade (se necessário)
+        if (projection < conn_barrier_val):
             grad_vec_1d = self.gradient_vector.T[0]
-            
-            idx_R2 = 2
-            idx_R3 = 4
-
-            # Calcula a magnitude do gradiente (Potencial de ganho de Lambda2)
-            mag_R2 = np.linalg.norm(grad_vec_1d[idx_R2 : idx_R2 + 2])
-            mag_R3 = np.linalg.norm(grad_vec_1d[idx_R3 : idx_R3 + 2])
             
             idx_winner = -1
             mag_winner = 0.0
+            for i,robot_name in enumerate(self.robots_list):
+                idx = i*2 
+                if self.robots_functions[robot_name] == "conn":            
+                    mag = np.linalg.norm(grad_vec_1d[idx : idx + 2])
+                    if mag > mag_winner:
+                        idx_winner = idx
+                        mag_winner = mag          
 
-            if mag_R2 > 1e-6 or mag_R3 > 1e-6:
-                if mag_R2 >= mag_R3:
-                    idx_winner = idx_R2
-                    mag_winner = mag_R2
-                else:
-                    idx_winner = idx_R3
-                    mag_winner = mag_R3
-
-            
             if idx_winner != -1:
                 grad_dir = grad_vec_1d[idx_winner : idx_winner + 2]
                 direction = grad_dir / mag_winner
                 u_guide = direction * V_rec
                 ideal_col[idx_winner : idx_winner + 2, 0] = u_guide
 
-
-        weights_diag = np.ones(n_vars)
-        weights_diag[0:2] = 10.0 
-        weights_diag[2:] = 0.01
+        # Configuração do problema de otimização
         W = np.diag(weights_diag)
 
         u_final = cp.Variable((n_vars, 1))
-        delta = cp.Variable((1, 1), nonneg=True) # Slack para evitar crash
+        delta = cp.Variable((1, 1), nonneg=True)
 
         cost_movement = cp.quad_form(u_final - ideal_col, W)
-        cost_slack = 1e9 * cp.sum_squares(delta) 
+        cost_slack = 1e8 * cp.sum_squares(delta) 
         
         objective = cp.Minimize(cost_movement + cost_slack)
         
@@ -205,22 +234,32 @@ class RobotsControllerNode(Node):
         L_POINT = 0.2     
         max_lateral_vel = REAL_MAX_W * L_POINT
         
-        yaw_r1 = self.robots_instances["robot1"].yaw
-        yaw_r2 = self.robots_instances["robot2"].yaw
-        yaw_r3 = self.robots_instances["robot3"].yaw
-
-        s1, c1 = np.sin(yaw_r1), np.cos(yaw_r1)
-        s2, c2 = np.sin(yaw_r2), np.cos(yaw_r2)
-        s3, c3 = np.sin(yaw_r3), np.cos(yaw_r3)
-        
         constraints = [
             self.gradient_vector.T @ u_final >= conn_barrier_val - delta,
-            cp.abs(u_final) <= max_vel,
-            cp.abs(-u_final[0,0]*s1 + u_final[1,0]*c1) <= max_lateral_vel,
-            cp.abs(-u_final[2,0]*s2 + u_final[3,0]*c2) <= max_lateral_vel,
-            cp.abs(-u_final[4,0]*s3 + u_final[5,0]*c3) <= max_lateral_vel
+            cp.abs(u_final) <= max_vel
         ]
+
+        # --- NOVA LÓGICA AQUI ---
+        for i, robot in enumerate(self.robots_list):
+            # 1. Restrição de Velocidade Lateral (Original)
+            yaw = self.robots_instances[robot].yaw
+            s, c = np.sin(yaw), np.cos(yaw)
+            constraints.append(cp.abs(-u_final[2*i,0]*s + u_final[2*i+1,0]*c) <= max_lateral_vel)
+
+            # 2. Restrição de Parada para Robôs "Task" (Nova)
+            if self.robots_functions[robot] == "task":
+                # Pega a velocidade ideal de entrada para este robô
+                vx_ideal = ideal_col[2*i, 0]
+                vy_ideal = ideal_col[2*i+1, 0]
+
+                # Verifica se a entrada é zero (usando pequena margem para float)
+                if abs(vx_ideal) < 1e-5 and abs(vy_ideal) < 1e-5:
+                    # Força a saída do otimizador a ser zero
+                    constraints.append(u_final[2*i, 0] == 0)
+                    constraints.append(u_final[2*i+1, 0] == 0)
+
         
+        # Restrições de Colisão (Inter-agentes)
         positions = [self.robots_instances[robot_name].pose.position for robot_name in self.robots_list]
         for i in range(len(positions)):
             for j in range(i + 1, len(positions)): 
@@ -248,7 +287,6 @@ class RobotsControllerNode(Node):
                     constraints.append(
                         n_vec @ (ui_var - uj_var) >= -1 * h
                     )
-
 
         problem = cp.Problem(objective, constraints)
 
