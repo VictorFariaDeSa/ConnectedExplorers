@@ -36,13 +36,13 @@ DISTANCE_SCORE_SCALE = 1.0
 
 # Scenario 01:
 
-# robots = [
-#     {"name":"robot1","x":"-6","y":"-1","function":"task"},
-#     {"name":"robot2","x":"-6","y":"1","function":"task"},
-#     {"name":"robot3","x":"-7","y":"0","function":"conn"},
-# ]
-# world_name = 'empty.world'
-# map_name = 'empty_world.yaml'
+robots = [
+    {"name":"robot1","x":"-6","y":"-1","function":"task"},
+    {"name":"robot2","x":"-6","y":"1","function":"task"},
+    {"name":"robot3","x":"-7","y":"0","function":"conn"},
+]
+world_name = 'empty.world'
+map_name = 'empty_world.yaml'
 
 
 # Scenario 02:
@@ -57,14 +57,14 @@ DISTANCE_SCORE_SCALE = 1.0
 
 # Scenario 03:
 
-robots = [
-    {"name":"robot1","x":"-6","y":"7.5","function":"task"},
-    {"name":"robot2","x":"-6","y":"8.5","function":"task"},
-    {"name":"robot3","x":"-7","y":"7.5","function":"conn"},
-    {"name":"robot4","x":"-7","y":"8.5","function":"conn"},
-]
-world_name = 'proj_world.world'
-map_name = 'my_map.yaml'
+# robots = [
+#     {"name":"robot1","x":"-6","y":"7.5","function":"task"},
+#     {"name":"robot2","x":"-6","y":"8.5","function":"task"},
+#     {"name":"robot3","x":"-7","y":"7.5","function":"conn"},
+#     {"name":"robot4","x":"-7","y":"8.5","function":"conn"},
+# ]
+# world_name = 'proj_world.world'
+# map_name = 'my_map.yaml'
 
 # # Scenario 04:
 
@@ -401,16 +401,32 @@ def generate_launch_description():
     )
     launch_nodes.append(marker_node)
 
-    marker_node = Node(
-        package="line_viewer",
-        executable="RobotsControllerNode",
-        name="RobotsControllerNode",
-        parameters=[
-            {"robots_list":get_all_robot_names(robots)},
-            {'robots_function_map': get_robots_functions(robots)}
-        ]
-    )
-    launch_nodes.append(marker_node)
+    # marker_node = Node(
+    #     package="line_viewer",
+    #     executable="RobotsControllerNode",
+    #     name="RobotsControllerNode",
+    #     parameters=[
+    #         {"robots_list":get_all_robot_names(robots)},
+    #         {'robots_function_map': get_robots_functions(robots)}
+    #     ]
+    # )
+    # launch_nodes.append(marker_node)
+
+    for i,robot in enumerate(robots):
+        r_controller_node = Node(
+            package="line_viewer",
+            executable="SingleRobotControllerNode",
+            name=f"RobotControllerNode_{robot['name']}",
+            parameters=[
+                {"robots_list":get_all_robot_names(robots)},
+                {"robot_number":i+1},
+                {"robot_role":robot["function"]}
+            ]
+        )
+        launch_nodes.append(r_controller_node)
+
+
+
 
     data_node = Node(
         package="line_viewer",

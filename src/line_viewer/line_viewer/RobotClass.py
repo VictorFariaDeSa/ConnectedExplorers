@@ -1,5 +1,6 @@
 import numpy as np
 from geometry_msgs.msg import Pose,Point,Quaternion
+import rclpy
 from tf_transformations import euler_from_quaternion
 
 
@@ -56,6 +57,7 @@ class RobotClass():
         ])
         velocities_vector = np.array([[vx],
                                     [vy]])
+
         robot_vels = j_inv @ velocities_vector
         v_raw = robot_vels[0, 0]
         w_raw = robot_vels[1, 0]
