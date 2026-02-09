@@ -69,4 +69,5 @@ class RobotClass():
         return v_raw,w_raw
 
 
-        
+    def Get_yaw_sine_and_cos(self):
+        return np.sin(self.yaw), np.cos(self.yaw)

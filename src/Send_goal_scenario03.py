@@ -2,6 +2,7 @@ import rclpy
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 from geometry_msgs.msg import PoseStamped
 from tf_transformations import quaternion_from_euler
+from std_msgs.msg import Bool
 
 def create_pose(navigator, x, y, yaw):
     """Função auxiliar apenas para criar o objeto da pose"""
@@ -26,9 +27,15 @@ def main():
     nav1 = BasicNavigator(namespace='robot1')
     nav2 = BasicNavigator(namespace='robot2')
 
+    start_pub = nav1.create_publisher(Bool, '/startSimulation', 10)
 
     nav1.waitUntilNav2Active()
     nav2.waitUntilNav2Active()
+
+
+    msg = Bool()
+    msg.data = True
+    start_pub.publish(msg)
 
     goal1 = create_pose(nav1, 5.0, 3.0, 0.0)
     goal2 = create_pose(nav2, -3.0, -6.0, 0.0)
