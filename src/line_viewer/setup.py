@@ -29,7 +29,8 @@ setup(
             "SightMarkerNode = line_viewer.SightMarkerNode:main",
             "RobotsControllerNode = line_viewer.RobotsControllerNode:main",
             "DataRecorderNode = line_viewer.DataRecorderNode:main",
-            "SingleRobotControllerNode = line_viewer.SingleRobotControllerNode:main"
+            "SingleRobotControllerNode = line_viewer.SingleRobotControllerNode:main",
+            "PointRobotNode = line_viewer.PointRobot:main"
         ],
     },
 )
