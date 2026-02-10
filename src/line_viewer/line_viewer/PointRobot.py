@@ -19,8 +19,8 @@ class PointRobot:
         self.yaw = yaw
         self.task = task
         self.xSpeed = 0.05
-        self.ySpeed = 0
-        self.yawSpeed = 0
+        self.ySpeed = 0.0
+        self.yawSpeed = 0.0
 
 
     '''
@@ -102,7 +102,7 @@ class PointRobot:
 class PointRobotNode(Node):
     def __init__(self):
         super().__init__('point_robot_sim')
-
+        
         self.declare_parameter("xPos", 0.0)
         xPos = self.get_parameter("xPos").value
 
@@ -115,6 +115,9 @@ class PointRobotNode(Node):
         self.declare_parameter("task", "conn")
         task = self.get_parameter("task").value
 
+        self.init_x = xPos
+        self.init_y = yPos
+
         self.robot = PointRobot(xPos, yPos, yaw, task)
 
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
@@ -126,7 +129,7 @@ class PointRobotNode(Node):
             self.cmd_callback, 
             10)
 
-        self.dt = 1 
+        self.dt = 0.05 
         self.timer = self.create_timer(self.dt, self.control_loop)
 
         ns = self.get_namespace().strip('/')
@@ -140,31 +143,49 @@ class PointRobotNode(Node):
 
 
     def control_loop(self):
-        # 1. Executa o passo de física da SUA classe
+        self.get_logger().info("CONTROL LOOP")
         self.robot.Step(self.dt)
-        
-        # 2. Publica os dados que o Nav2 precisa
         current_time = self.get_clock().now().to_msg()
-        
-        # Publicar TF (essencial para o Costmap do Nav2)
+        q = self.yaw_to_quat(self.robot.yaw)
+
+        # 1. TF Odom -> Base Link 
+        # Aqui subtraímos a posição inicial para que o frame base_link 
+        # se mova RELATIVO ao frame odom.
         t = TransformStamped()
         t.header.stamp = current_time
         t.header.frame_id = self.odom_frame
         t.child_frame_id = self.base_frame
-        t.transform.translation.x = self.robot.x
-        t.transform.translation.y = self.robot.y
-        t.transform.rotation = self.yaw_to_quat(self.robot.yaw)
-        self.tf_broadcaster.sendTransform(t)
         
-        # Publicar Odom
+        # O PULO DO GATO:
+        t.transform.translation.x = float(self.robot.x - self.init_x)
+        t.transform.translation.y = float(self.robot.y - self.init_y)
+        t.transform.rotation = q
+        
+        # 2. TF Map -> Odom (Fica parado na posição inicial)
+        map_to_odom = TransformStamped()
+        map_to_odom.header.stamp = current_time
+        map_to_odom.header.frame_id = "map"
+        map_to_odom.child_frame_id = self.odom_frame
+        map_to_odom.transform.translation.x = float(self.init_x)
+        map_to_odom.transform.translation.y = float(self.init_y)
+        map_to_odom.transform.rotation.w = 1.0
+
+        self.tf_broadcaster.sendTransform([t, map_to_odom])
+        
+        # 3. Odometria (Nav2 espera a posição relativa ao frame odom)
         odom = Odometry()
         odom.header.stamp = current_time
         odom.header.frame_id = self.odom_frame
         odom.child_frame_id = self.base_frame
-        odom.pose.pose.position.x = self.robot.x
-        odom.pose.pose.position.y = self.robot.y
+        odom.pose.pose.position.x = float(self.robot.x - self.init_x)
+        odom.pose.pose.position.y = float(self.robot.y - self.init_y)
+        odom.pose.pose.orientation = q
+        # Velocidades são locais, então não mudam
+        odom.twist.twist.linear.x = float(self.robot.xSpeed)
+        odom.twist.twist.linear.y = float(self.robot.ySpeed)
+        odom.twist.twist.angular.z = float(self.robot.yawSpeed)
+        
         self.odom_pub.publish(odom)
-
     # Ver função pronta do ROS
     def yaw_to_quat(self, yaw):
         return Quaternion(x=0.0, y=0.0, z=math.sin(yaw/2), w=math.cos(yaw/2))
