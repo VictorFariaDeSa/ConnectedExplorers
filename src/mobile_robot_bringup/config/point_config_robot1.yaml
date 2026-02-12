@@ -4,6 +4,8 @@ robot1/planner_server:
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 2.0
+      use_final_approach_orientation: False
 
 robot1/global_costmap:
   global_costmap:
@@ -12,7 +14,7 @@ robot1/global_costmap:
       publish_frequency: 1.0
       global_frame: map
       robot_base_frame: robot1/base_link
-      robot_radius: 0.20 
+      robot_radius: 0.20       
       use_sim_time: False
       plugins: ["static_layer", "inflation_layer"]
       static_layer:
@@ -21,8 +23,8 @@ robot1/global_costmap:
         map_topic: /map
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.4
-        cost_scaling_factor: 3.0
+        inflation_radius: 0.6 # Reduzido para passar melhor em quinas
+        cost_scaling_factor: 5.0 # Curva de custo mais íngreme perto da parede
 
 robot1/local_costmap:
   local_costmap:
@@ -42,8 +44,8 @@ robot1/local_costmap:
         map_topic: /map
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.4
-        cost_scaling_factor: 3.0
+        inflation_radius: 0.25 # Reduzido para evitar falso bloqueio
+        cost_scaling_factor: 10.0
 
 robot1/controller_server:
   ros__parameters:
@@ -63,51 +65,43 @@ robot1/controller_server:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.15
-      yaw_goal_tolerance: 3.14 # Tolerância total pois o robô não rotaciona
+      yaw_goal_tolerance: 3.14
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: True
-      # Limites Holonômicos (X e Y liberados)
       min_vel_x: -0.5
       max_vel_x: 0.5
       min_vel_y: -0.5
       max_vel_y: 0.5
-      max_vel_theta: 0.0 # Bloqueio de rotação
-      
-      # Velocidade combinada máxima (Crucial estar > 0)
+      max_vel_theta: 0.0
       min_speed_xy: 0.01
       max_speed_xy: 0.5
       min_speed_theta: 0.0
-      
-      # Acelerações lineares liberadas
       acc_lim_x: 2.5
       acc_lim_y: 2.5
       acc_lim_theta: 0.0
       decel_lim_x: -2.5
       decel_lim_y: -2.5
-      decel_lim_theta: 0.0
-      
-      # Amostragem para cálculo de trajetória (X e Y equilibrados)
       vx_samples: 30
       vy_samples: 30
       vtheta_samples: 0
       sim_time: 1.5
       linear_granularity: 0.02
-      angular_granularity: 0.025
       transform_tolerance: 0.2
       
       critics: ["Oscillation", "BaseObstacle", "PathDist", "GoalDist"]
-      BaseObstacle.scale: 0.02
-      PathDist.scale: 5.0   # Baixo para permitir desvios laterais em relação ao plano
-      GoalDist.scale: 24.0  # Alto para focar em chegar ao destino
+      BaseObstacle.scale: 0.1
+      PathDist.scale: 5.0
+      GoalDist.scale: 2.0
       Oscillation.scale: 1.0
 
 robot1/behavior_server:
   ros__parameters:
-    global_frame: map
+    global_frame: map # Mudado para map
     robot_base_frame: robot1/base_link
     use_sim_time: False
+    simulate_ahead_time: 2.0
     behavior_plugins: ["spin", "backup", "wait"]
     spin:
       plugin: "nav2_behaviors::Spin"
@@ -115,7 +109,9 @@ robot1/behavior_server:
       plugin: "nav2_behaviors::BackUp"
     wait:
       plugin: "nav2_behaviors::Wait"
-    # Garante que os comportamentos de recuperação respeitem a ausência de giro
+    # Configurações para ignorar o frame odom nas manobras
+    local_frame: map 
+    fixed_frame: map
     max_rotational_vel: 0.0
     min_rotational_vel: 0.0
     rotational_acc_lim: 0.0
@@ -125,5 +121,5 @@ robot1/bt_navigator:
     use_sim_time: False
     global_frame: map
     robot_base_frame: robot1/base_link
-    odom_topic: /robot1/odom
+    odom_topic: /robot1/odom # Mantido apenas por compatibilidade, mas o global_frame acima manda
     default_nav_to_pose_bt_xml: "/opt/ros/jazzy/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml"
