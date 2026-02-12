@@ -1,195 +1,115 @@
+# -*- coding: utf-8 -*-
+
+import math
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, TransformStamped
-import tf2_ros
 from nav_msgs.msg import Odometry
-import math
-from geometry_msgs.msg import Quaternion
+from rclpy.qos import QoSProfile
+from tf2_ros import TransformBroadcaster
 
+# 1. Classe de Lógica Pura (Seguindo o exemplo)
 class PointRobot:
-    '''
-********************************************************************************
-* Class Constructor
-********************************************************************************
-    '''
-    
-    def __init__(self,x,y,yaw,task):
+    def __init__(self, x: float = 0.0, y: float = 0.0, yaw: float = 0.0):
         self.x = x
         self.y = y
         self.yaw = yaw
-        self.task = task
-        self.xSpeed = 0.05
-        self.ySpeed = 0.0
-        self.yawSpeed = 0.0
 
-
-    '''
-********************************************************************************
-* Class dunder methods
-********************************************************************************
-    '''
+    def step(self, dt, vx, vy, wz):
+        # Integração de Euler simples
+        self.x += vx * dt
+        self.y += vy * dt
+        self.yaw += wz * dt
+        # Normalização do ângulo
+        self.yaw = math.atan2(math.sin(self.yaw), math.cos(self.yaw))
 
     def __repr__(self) -> str:
-        return f"Robot(x={self.x:.2f}, y={self.y:.2f})"
-
-    '''
-********************************************************************************
-* Class Getters and Setters
-********************************************************************************
-    '''
-
-    def SetX(self, x):
-        self.x = x
-
-    def GetX(self):
-        return self.x
-
-    def SetY(self, y):
-        self.y = y
-
-    def GetY(self):
-        return self.y
-    
-    def SetYaw(self, yaw):
-        self.yaw = yaw
-
-    def GetYaw(self):
-        return self.yaw
-
-    def SetXSpeed(self, speed):
-        self.xSpeed = speed
-
-    def GetXSpeed(self):
-        return self.xSpeed
-
-    def SetYSpeed(self, speed):
-        self.ySpeed = speed
-
-    def GetYSpeed(self):
-        return self.ySpeed
-    
-    def SetYawSpeed(self, speed):
-        self.yawSpeed = speed
-
-    def GetYawSpeed(self):
-        return self.yawSpeed
-        
-    '''
-********************************************************************************
-* Class Interation functions
-********************************************************************************
-    '''
-
-    def Step(self,timeInterval):
-        self.x += self.xSpeed * timeInterval
-        self.y += self.ySpeed * timeInterval
-        self.yaw += self.yawSpeed * timeInterval
-    '''
-********************************************************************************
-* Class Helpers
-********************************************************************************
-    '''
-        
+        return f"Robot(x={self.x:.2f}, y={self.y:.2f}, yaw={math.degrees(self.yaw):.2f}°)"
 
 
-
-'''
-********************************************************************************
-* ROS2 Node
-********************************************************************************
-'''
-
+# 2. Nó ROS 2 (Seguindo o exemplo)
 class PointRobotNode(Node):
     def __init__(self):
-        super().__init__('point_robot_sim')
+        super().__init__(node_name='point_robot_sim')
         
+        # --- Handle Parameters ---
         self.declare_parameter("xPos", 0.0)
-        xPos = self.get_parameter("xPos").value
-
         self.declare_parameter("yPos", 0.0)
-        yPos = self.get_parameter("yPos").value
-
         self.declare_parameter("yaw", 0.0)
-        yaw = self.get_parameter("yaw").value
+        self.declare_parameter("dt", 0.05)
 
-        self.declare_parameter("task", "conn")
-        task = self.get_parameter("task").value
+        self.x = self.get_parameter("xPos").get_parameter_value().double_value
+        self.y = self.get_parameter("yPos").get_parameter_value().double_value
+        self.yaw = self.get_parameter("yaw").get_parameter_value().double_value
+        self.dt = self.get_parameter("dt").get_parameter_value().double_value
 
-        self.init_x = xPos
-        self.init_y = yPos
+        # Estado Interno
+        self.robot = PointRobot(self.x, self.y, self.yaw)
+        self.vx, self.vy, self.wz = 0.0, 0.0, 0.0
 
-        self.robot = PointRobot(xPos, yPos, yaw, task)
+        # ROS 2 Infrastructure
+        qos = QoSProfile(depth=10)
+        topic_prefix = self.get_namespace()
+        
+        # Subscriber e Publisher (Nomes relativos para funcionar com namespaces)
+        self.cmd_sub = self.create_subscription(Twist, f'{topic_prefix}/cmd_vel', self.cmd_callback, qos)
+        self.odom_pub = self.create_publisher(Odometry, f'{topic_prefix}/odom', qos)
+        
 
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
-        self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
+        self.tf_broadcaster = TransformBroadcaster(self)
 
-        self.cmd_sub = self.create_subscription(
-            Twist, 
-            'cmd_vel', 
-            self.cmd_callback, 
-            10)
+        self.create_timer(self.dt, self.update_physics)
+        
+        self.get_logger().info(f"Node {topic_prefix} iniciado em X:{self.x} Y:{self.y}")
 
-        self.dt = 0.05 
-        self.timer = self.create_timer(self.dt, self.control_loop)
+    def cmd_callback(self, msg: Twist):
+        self.vx = msg.linear.x
+        self.vy = msg.linear.y
+        self.wz = msg.angular.z
 
+    def update_physics(self):
+        # Atualiza a cinemática
+        self.robot.step(self.dt, self.vx, self.vy, self.wz)
+        
+        now = self.get_clock().now()
+        self.broadcast_state(now)
+
+    def broadcast_state(self, now):
+        cy = math.cos(self.robot.yaw * 0.5)
+        sy = math.sin(self.robot.yaw * 0.5)
+        
         ns = self.get_namespace().strip('/')
-        self.odom_frame = f"{ns}/odom" if ns else "odom"
-        self.base_frame = f"{ns}/base_link" if ns else "base_link"
+        child_frame = f"{ns}/base_link" if ns else "base_link"
 
-    def cmd_callback(self, msg):
-        self.robot.SetXSpeed(msg.linear.x)
-        self.robot.SetYSpeed(msg.linear.y)
-        self.robot.SetYawSpeed(msg.angular.z)
-
-
-    def control_loop(self):
-        self.get_logger().info("CONTROL LOOP")
-        self.robot.Step(self.dt)
-        current_time = self.get_clock().now().to_msg()
-        q = self.yaw_to_quat(self.robot.yaw)
-
-        # 1. TF Odom -> Base Link 
-        # Aqui subtraímos a posição inicial para que o frame base_link 
-        # se mova RELATIVO ao frame odom.
-        t = TransformStamped()
-        t.header.stamp = current_time
-        t.header.frame_id = self.odom_frame
-        t.child_frame_id = self.base_frame
-        
-        # O PULO DO GATO:
-        t.transform.translation.x = float(self.robot.x - self.init_x)
-        t.transform.translation.y = float(self.robot.y - self.init_y)
-        t.transform.rotation = q
-        
-        # 2. TF Map -> Odom (Fica parado na posição inicial)
-        map_to_odom = TransformStamped()
-        map_to_odom.header.stamp = current_time
-        map_to_odom.header.frame_id = "map"
-        map_to_odom.child_frame_id = self.odom_frame
-        map_to_odom.transform.translation.x = float(self.init_x)
-        map_to_odom.transform.translation.y = float(self.init_y)
-        map_to_odom.transform.rotation.w = 1.0
-
-        self.tf_broadcaster.sendTransform([t, map_to_odom])
-        
-        # 3. Odometria (Nav2 espera a posição relativa ao frame odom)
+        # --- Publicar Odometria ---
         odom = Odometry()
-        odom.header.stamp = current_time
-        odom.header.frame_id = self.odom_frame
-        odom.child_frame_id = self.base_frame
-        odom.pose.pose.position.x = float(self.robot.x - self.init_x)
-        odom.pose.pose.position.y = float(self.robot.y - self.init_y)
-        odom.pose.pose.orientation = q
-        # Velocidades são locais, então não mudam
-        odom.twist.twist.linear.x = float(self.robot.xSpeed)
-        odom.twist.twist.linear.y = float(self.robot.ySpeed)
-        odom.twist.twist.angular.z = float(self.robot.yawSpeed)
+        odom.header.stamp = now.to_msg()
+        odom.header.frame_id = "map" # Link direto com o mapa como no exemplo
+        odom.child_frame_id = child_frame
+        
+        odom.pose.pose.position.x = self.robot.x
+        odom.pose.pose.position.y = self.robot.y
+        odom.pose.pose.orientation.w = cy
+        odom.pose.pose.orientation.z = sy
+        
+        odom.twist.twist.linear.x = self.vx
+        odom.twist.twist.linear.y = self.vy
+        odom.twist.twist.angular.z = self.wz
         
         self.odom_pub.publish(odom)
-    # Ver função pronta do ROS
-    def yaw_to_quat(self, yaw):
-        return Quaternion(x=0.0, y=0.0, z=math.sin(yaw/2), w=math.cos(yaw/2))
 
+
+        t = TransformStamped()
+        t.header.stamp = now.to_msg()
+        t.header.frame_id = "map"
+        t.child_frame_id = child_frame
+        
+        t.transform.translation.x = self.robot.x
+        t.transform.translation.y = self.robot.y
+        t.transform.rotation.w = cy
+        t.transform.rotation.z = sy
+        
+        self.tf_broadcaster.sendTransform(t)
 
 def main(args=None):
     rclpy.init(args=args)
@@ -199,9 +119,8 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        if rclpy.ok():
-            node.destroy_node()
-            rclpy.shutdown()
+        node.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
