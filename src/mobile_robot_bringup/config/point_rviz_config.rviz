@@ -7,6 +7,8 @@ Panels:
         - /Global Options1
         - /Map1/Topic1
         - /Map1/Update Topic1
+        - /Marker1/Topic1
+        - /Marker2
       Splitter Ratio: 0.5
     Tree Height: 1504
   - Class: rviz_common/Selection
@@ -78,23 +80,58 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
-        base_link:
-          Value: true
         map:
           Value: true
-        odom:
+        robot1/base_link:
+          Value: true
+        robot2/base_link:
+          Value: true
+        robot3/base_link:
+          Value: true
+        robot4/base_link:
           Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
       Show Axes: true
-      Show Names: false
+      Show Names: true
       Tree:
         map:
-          odom:
-            base_link:
-              {}
+          robot1/base_link:
+            {}
+          robot2/base_link:
+            {}
+          robot3/base_link:
+            {}
+          robot4/base_link:
+            {}
       Update Interval: 0
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Marker
+      Namespaces:
+        sight_lines: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: System Default
+        Value: /visualization_marker
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Marker
+      Namespaces:
+        robot_bodies: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robots_spheres
       Value: true
   Enabled: true
   Global Options:
@@ -142,25 +179,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 34.224708557128906
+      Distance: 11.173775672912598
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: -3.8404390811920166
+        Y: 6.22128438949585
+        Z: -2.503809690475464
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9153977036476135
+      Pitch: 0.6303979754447937
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.5653972625732422
+      Yaw: 3.200401782989502
     Saved: ~
 Window Geometry:
   Displays:

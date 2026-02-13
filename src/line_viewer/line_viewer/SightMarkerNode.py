@@ -12,7 +12,7 @@ from typing import Dict
 from std_msgs.msg import Float64MultiArray
 import numpy as np
 from .Ros2Utils import float64multArray_to_numpy_matrix
-
+import json
 
 class SightMarkerNode(Node):
     def __init__(self):
@@ -35,6 +35,10 @@ class SightMarkerNode(Node):
         self.robots_list = self.get_parameter("robots_list").value
         self.robots_list = [] if self.robots_list == [''] else self.robots_list
         
+        self.declare_parameter("robots_function_map", "{}")
+        json_str = self.get_parameter('robots_function_map').get_parameter_value().string_value
+        self.robots_functions = json.loads(json_str)
+
         self.laplacian_matrix = None
         self.subscriptions_dict = {}
         self.robots_instances:Dict[str, RobotClass] = {}
@@ -61,10 +65,20 @@ class SightMarkerNode(Node):
             )
 
         self.marker_publisher = self.create_publisher(
-                Marker, 
-                self.publisher_node_name, 
-                qos
-            )
+            Marker, 
+            self.publisher_node_name, 
+            qos
+        )
+
+        # NOVO Publisher para as ESFERAS
+        self.sphere_publisher = self.create_publisher(
+            Marker, 
+            "robots_spheres", # Nome do novo tópico
+            qos
+        )
+        
+        self.timer = self.create_timer(0.1, self.publish_markers)
+        
         self.timer = self.create_timer(0.1, self.publish_markers)
 
     def laplacian_matrix_cb(self,msg):
@@ -75,58 +89,80 @@ class SightMarkerNode(Node):
         self.robots_instances[robot_name].Set_pose(msg)
 
     def publish_markers(self):
+        # Verificações de segurança
         if self.laplacian_matrix is None:
             return
-
-        rows, cols = self.laplacian_matrix.shape
         num_robots = len(self.robots_list)
-        if rows != num_robots or cols != num_robots:
+        if self.laplacian_matrix.shape != (num_robots, num_robots):
             return
 
-        marker = Marker()
-        marker.header.frame_id = self.reference_frame
-        marker.header.stamp = self.get_clock().now().to_msg()
-        marker.ns = "sight_lines"
-        marker.id = 0 
-        marker.type = Marker.LINE_LIST
-        marker.action = Marker.ADD
-        
-        marker.scale.x = float(self.line_scale)
-        
-        marker.pose.orientation.w = 1.0
+        now = self.get_clock().now().to_msg()
 
-        marker.points = []
-        marker.colors = []
+        # --- CONFIGURAÇÃO DO MARCADOR DE LINHAS ---
+        line_marker = Marker()
+        line_marker.header.frame_id = self.reference_frame
+        line_marker.header.stamp = now
+        line_marker.ns = "sight_lines"
+        line_marker.id = 0 
+        line_marker.type = Marker.LINE_LIST
+        line_marker.action = Marker.ADD
+        line_marker.scale.x = float(self.line_scale)
+        line_marker.pose.orientation.w = 1.0
 
+        # --- CONFIGURAÇÃO DO MARCADOR DE ESFERAS ---
+        sphere_marker = Marker()
+        sphere_marker.header.frame_id = self.reference_frame
+        sphere_marker.header.stamp = now
+        sphere_marker.ns = "robot_bodies"
+        sphere_marker.id = 1 
+        sphere_marker.type = Marker.SPHERE_LIST
+        sphere_marker.action = Marker.ADD
+        sphere_marker.scale.x = 0.2 # Diâmetro da esfera
+        sphere_marker.scale.y = 0.2
+        sphere_marker.scale.z = 0.2
+        sphere_marker.pose.orientation.w = 1.0
+
+        # --- PREENCHIMENTO DOS DADOS ---
         for i, r_name_1 in enumerate(self.robots_list):
+            r1 = self.robots_instances[r_name_1]
+            p1 = r1.pose.position
+            
+            func = self.robots_functions.get(r_name_1, "default")
+            
+            sphere_color = ColorRGBA(a=1.0)
+            if func == "task":
+                sphere_color.r = 0.0; sphere_color.g = 1.0; sphere_color.b = 0.0 
+            elif func == "conn":
+                sphere_color.r = 0.0; sphere_color.g = 0.0; sphere_color.b = 1.0 
+            else:
+                sphere_color.r = 1.0; sphere_color.g = 1.0; sphere_color.b = 1.0 
+
+            sphere_marker.points.append(p1)
+            sphere_marker.colors.append(sphere_color)
+
             for j, r_name_2 in enumerate(self.robots_list):
                 if i >= j:
                     continue
 
-                r1 = self.robots_instances[r_name_1]
                 r2 = self.robots_instances[r_name_2]
-                
                 score = self.laplacian_matrix[i, j]
-                
                 rgb = self.get_marker_color(score)
 
-                color_msg = ColorRGBA()
-                color_msg.r = float(rgb[0])
-                color_msg.g = float(rgb[1])
-                color_msg.b = float(rgb[2])
-                color_msg.a = float(self.line_alpha)
+                color_msg = ColorRGBA(
+                    r=float(rgb[0]), g=float(rgb[1]), b=float(rgb[2]), a=float(self.line_alpha)
+                )
 
-
-                p1 = r1.pose.position
-                marker.points.append(p1)
-                marker.colors.append(color_msg)
+                # Adiciona par de pontos para a linha
+                line_marker.points.append(p1)
+                line_marker.colors.append(color_msg)
                 
                 p2 = r2.pose.position
-                marker.points.append(p2)
-                marker.colors.append(color_msg)
+                line_marker.points.append(p2)
+                line_marker.colors.append(color_msg)
 
-
-        self.marker_publisher.publish(marker)
+        # Publica em tópicos separados
+        self.marker_publisher.publish(line_marker)
+        self.sphere_publisher.publish(sphere_marker)
 
 
     def get_marker_color(self, score):
