@@ -121,10 +121,11 @@ class RobotsMathNode(Node):
     
 
     def listener_callback(self, msg, robot_index):
-        robot_name = self.robots_list[robot_index] 
-        self.robots_instances[robot_name].Set_pose(msg)
-        robot_instance_list = [self.robots_instances[robot] for robot in self.robots_list]
-        self.math_handler.refresh_laplacian_matrix(robot_instance_list)
+        if self.math_handler:
+            robot_name = self.robots_list[robot_index] 
+            self.robots_instances[robot_name].Set_pose(msg)
+            robot_instance_list = [self.robots_instances[robot] for robot in self.robots_list]
+            self.math_handler.refresh_laplacian_matrix(robot_instance_list)
 
     def on_map_cb(self,msg):
         self.map_handler = MapHandler(

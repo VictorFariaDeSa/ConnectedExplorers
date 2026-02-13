@@ -3,6 +3,7 @@ from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 from geometry_msgs.msg import PoseStamped
 from tf_transformations import quaternion_from_euler
 from std_msgs.msg import Bool
+import time 
 
 def create_pose(navigator, x, y, yaw):
     """Função auxiliar apenas para criar o objeto da pose"""
@@ -29,8 +30,8 @@ def main():
 
     start_pub = nav1.create_publisher(Bool, '/startSimulation', 10)
 
-    nav1.waitUntilNav2Active()
-    nav2.waitUntilNav2Active()
+    # nav1.waitUntilNav2Active()
+    # nav2.waitUntilNav2Active()
 
 
     msg = Bool()
@@ -44,7 +45,7 @@ def main():
     nav2.goToPose(goal2)
 
     while not nav1.isTaskComplete() or not nav2.isTaskComplete():
-        pass
+        time.sleep(0.1)
 
     print("Tarefas finalizadas!")
     

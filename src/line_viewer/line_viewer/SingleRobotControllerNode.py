@@ -47,6 +47,8 @@ class SingleRobotControllerNode(Node):
         self.declare_parameter("ideal_cmd_vel_topic_name", "ideal_cmd_vel")
         self.ideal_cmd_vel_topic_name= self.get_parameter("ideal_cmd_vel_topic_name").value
 
+        self.last_cmd_time = self.get_clock().now()
+
         self.subscriptions_dict_position = {}
         qos = QoSProfile(depth=10)
 
@@ -57,7 +59,7 @@ class SingleRobotControllerNode(Node):
         self.nav2_vel_vector = np.zeros((2,1))
         self.matrix_handler = MatrixHandler(self.n_robots)
         self.gradient_vector = np.zeros((self.n_robots*2,1))
-        self.active = False
+        self.active = True
 
         '''
         ************************************************************************
@@ -128,12 +130,12 @@ class SingleRobotControllerNode(Node):
         self.get_logger().info(f'Subscribed to: {topic_name}')
 
 
-        self.subscription_start = self.create_subscription(
-            Bool, # Ou o tipo de mensagem 'generic' que você está usando
-            "/startSimulation",
-            self.toggle_callback,
-            qos
-        )
+        # self.subscription_start = self.create_subscription(
+        #     Bool, # Ou o tipo de mensagem 'generic' que você está usando
+        #     "/startSimulation",
+        #     self.toggle_callback,
+        #     qos
+        # )
 
 
 
@@ -156,15 +158,18 @@ class SingleRobotControllerNode(Node):
         self.gradient_vector = float64multArray_to_numpy_matrix(msg)
 
     def on_cmd_vel_cb(self, msg: Twist):        
-        linear_velocity = msg.linear.x
-        angular_velocity = msg.angular.z
+        # linear_velocity = msg.linear.x
+        # angular_velocity = msg.angular.z
 
-        vx, vy = self.Get_robot_instance().Linear_velocity_to_xy(linear_velocity, angular_velocity, 0.15)
+        # vx, vy = self.Get_robot_instance().Linear_velocity_to_xy(linear_velocity, angular_velocity, 0.15)
         
 
-        self.nav2_vel_vector[0, 0] = float(vx)
-        self.nav2_vel_vector[1, 0] = float(vy)
-        
+        # self.nav2_vel_vector[0, 0] = float(vx)
+        # self.nav2_vel_vector[1, 0] = float(vy)
+        self.nav2_vel_vector[0, 0] = msg.linear.x
+        self.nav2_vel_vector[1, 0] = msg.linear.y
+        self.last_cmd_time = self.get_clock().now()
+            
 
     def toggle_callback(self, msg):
         self.active = not self.active
@@ -182,6 +187,9 @@ class SingleRobotControllerNode(Node):
             if has_input or is_conn:
                 real_velocities_vector = self.get_optimized_movement_vector(self.nav2_vel_vector)
                 self.send_robot_velocity(real_velocities_vector)
+            else:
+                self.send_robot_velocity(np.zeros((2,1)))
+            
 
 
 
@@ -264,10 +272,10 @@ class SingleRobotControllerNode(Node):
         constraints.append(cp.abs(u_final) <= max_vel)
 
         s, c = self.Get_robot_instance().Get_yaw_sine_and_cos()
-        constraints.append(cp.abs(-u_final[0]*s + u_final[1]*c) <= max_lateral_vel)
+        # constraints.append(cp.abs(-u_final[0]*s + u_final[1]*c) <= max_lateral_vel)
 
         if self.robot_role == "task":
-            if self.Check_vector_greater_than_threshold(ideal_vector,1e-5):
+            if not self.Check_vector_greater_than_threshold(ideal_vector,1e-5):
                 return np.zeros((2,1))
 
         positions = [self.robots_instances[robot_name].pose.position for robot_name in self.robots_list if robot_name!=self.robot_name]
@@ -307,12 +315,14 @@ class SingleRobotControllerNode(Node):
 
 
     def send_robot_velocity(self,velocities_vector):
-        v_global = velocities_vector[0,0]
-        w_global = velocities_vector[1,0]
-        v,w = self.Get_robot_instance().feedback_linearization_global_velocities_to_vw(v_global,w_global,0.15)
         msg = Twist()
-        msg.linear.x = v
-        msg.angular.z = w
+        # v_global = velocities_vector[0,0]
+        # w_global = velocities_vector[1,0]
+        # v,w = self.Get_robot_instance().feedback_linearization_global_velocities_to_vw(v_global,w_global,0.15)
+        # msg.linear.x = v
+        # msg.angular.z = w
+        msg.linear.x = float(velocities_vector[0, 0])
+        msg.linear.y = float(velocities_vector[1, 0])
         self.vel_publisher.publish(msg)
 
     def get_collision_safe(self, safe_dist):
