@@ -31,19 +31,18 @@ public:
 
     void AddSphereToMarkerMsg(
         visualization_msgs::msg::Marker& sphere_marker,
-        float x, float y, float z, 
+        geometry_msgs::msg::Point pose, 
         std_msgs::msg::ColorRGBA color
     );
 
     void AddLineToMarkerMsg(
         visualization_msgs::msg::Marker& line_marker,
-        float x_0, float y_0, float z_0, 
-        float x_f, float y_f, float z_f, 
+        geometry_msgs::msg::Point pose_1, 
+        geometry_msgs::msg::Point pose_2, 
         std_msgs::msg::ColorRGBA color 
     );
 
 
 private:
-    geometry_msgs::msg::Point xyzToRosPoint(float x, float y, float z);
 };
 

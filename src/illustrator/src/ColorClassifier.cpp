@@ -30,7 +30,7 @@ std_msgs::msg::ColorRGBA ColorClassifier::GetColorByTask(uint8_t task_id){
         case RobotTask::CONN:
             color.b = 1.0; break;
         default:
-            color.r = 1.0; color.g = 1.0; color.b = 1.0; break;
+            color.r = 1.0; color.g = 1.0; color.b = 0.0; break;
     }
     return color;
 }
@@ -41,10 +41,10 @@ std_msgs::msg::ColorRGBA ColorClassifier::GetColorByScore(float score){
     std_msgs::msg::ColorRGBA rgb_result;
     rgb_result.a = 1.0;
 
-    if (abs(score < score_threshold)){
+    if (abs_score < score_threshold){
         rgb_result.r = 1.0;
-        rgb_result.g = 1.0;
-        rgb_result.b = 1.0;
+        rgb_result.g = 0.0;
+        rgb_result.b = 0.0;
     }else{
         float r_val = 1.0f - abs_score;
         rgb_result.r = std::max(0.0f, std::min(1.0f, r_val));

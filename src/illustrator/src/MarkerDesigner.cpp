@@ -54,35 +54,24 @@ Marker MarkerDesigner::GetBaseSphereMarkers(
 
 void MarkerDesigner::AddSphereToMarkerMsg(
     Marker& sphere_marker,
-    float x, float y, float z, 
+    geometry_msgs::msg::Point point, 
     std_msgs::msg::ColorRGBA color
 ){
-    geometry_msgs::msg::Point p = xyzToRosPoint(x,y,z);
-    sphere_marker.points.push_back(p);
-    
+    sphere_marker.points.push_back(point);
     sphere_marker.colors.push_back(color);
 }
 
 void MarkerDesigner::AddLineToMarkerMsg(
     Marker& line_marker,
-    float x_0, float y_0, float z_0, 
-    float x_f, float y_f, float z_f, 
+    geometry_msgs::msg::Point point_1, 
+    geometry_msgs::msg::Point point_2, 
     std_msgs::msg::ColorRGBA color 
 ){
-    geometry_msgs::msg::Point p_0 = xyzToRosPoint(x_0,y_0,z_0);
-    line_marker.points.push_back(p_0);
-    geometry_msgs::msg::Point p_f= xyzToRosPoint(x_f,y_f,z_f);
-    line_marker.points.push_back(p_f);
+    line_marker.points.push_back(point_1);
+    line_marker.points.push_back(point_2);
 
     line_marker.colors.push_back(color);
     line_marker.colors.push_back(color);
 }
 
-geometry_msgs::msg::Point MarkerDesigner::xyzToRosPoint(float x, float y, float z){
-    geometry_msgs::msg::Point point;
-    point.x = x;
-    point.y = y;
-    point.z = z;
-    return point;
-}
 

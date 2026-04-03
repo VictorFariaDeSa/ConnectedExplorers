@@ -184,20 +184,31 @@ def generate_launch_description():
     )
     launch_nodes.append(marker_node)
 
-    marker_node = Node(
-        package="line_viewer",
-        executable="SightMarkerNode",
-        name="SightMarkerNode",
-        parameters=[
-            {"robots_list":get_all_robot_names(robots)},
-            {"reference_frame":"map"},
-            {"publisher_node_name":"visualization_marker"},
-            {'robots_function_map': get_robots_functions(robots)}
+    # marker_node = Node(
+    #     package="line_viewer",
+    #     executable="SightMarkerNode",
+    #     name="SightMarkerNode",
+    #     parameters=[
+    #         {"robots_list":get_all_robot_names(robots)},
+    #         {"reference_frame":"map"},
+    #         {"publisher_node_name":"visualization_marker"},
+    #         {'robots_function_map': get_robots_functions(robots)}
 
+    #     ]
+    # )
+    # launch_nodes.append(marker_node)
+
+    marker_node = Node(
+        package="illustrator",
+        executable="illustrator_node",
+        name="illustrator_node",
+        parameters=[
+            {"number_of_robots":len(get_all_robot_names(robots))},
+            {"robot_name_prefix":"robot"},
+            {"reference_frame":"map"},
         ]
     )
     launch_nodes.append(marker_node)
-
 
     marker_node = Node(
         package="line_viewer",
