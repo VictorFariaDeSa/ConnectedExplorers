@@ -29,7 +29,7 @@ from launch.substitutions import Command
 ********************************************************************************
 '''
 description_pkg = 'mobile_robot_description'
-bringup_pkg = 'mobile_robot_bringup'
+bringup_pkg = 'connected_explorers_bringup'
 
 
 '''
@@ -53,7 +53,7 @@ slam_toolbox_params_file = os.path.join(
     get_package_share_directory(bringup_pkg), 'slam_config', 'mapper_params_online_async.yaml'
     )
 model_path = os.path.join(
-    get_package_share_directory('mobile_robot_bringup'),
+    get_package_share_directory('connected_explorers_bringup'),
     'models'
 )
 

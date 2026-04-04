@@ -133,13 +133,13 @@ class RobotsMathNode(Node):
             map_info=msg.info
         )
         self.map_handler.compute_map_distance()
-        self.map_handler.generate_distances_colormap("/home/victor/projects/final_proj_MR/images/map.png")
-        self.map_handler.generate_gradient_colormap("/home/victor/projects/final_proj_MR/images/map_x.png","x")
-        self.map_handler.generate_gradient_colormap("/home/victor/projects/final_proj_MR/images/map_y.png","y")
+        self.map_handler.generate_distances_colormap("/home/victor/projects/ConnectedExplorers/images/map.png")
+        self.map_handler.generate_gradient_colormap("/home/victor/projects/ConnectedExplorers/images/map_x.png","x")
+        self.map_handler.generate_gradient_colormap("/home/victor/projects/ConnectedExplorers/images/map_y.png","y")
 
         self.math_handler = MathHandler(self,self.distance_score_scale,self.distance_score_offset,self.sight_score_scale,self.sight_score_offset)
-        self.math_handler.generate_sight_score_chart("/home/victor/projects/final_proj_MR/images/sight_score.png")
-        self.math_handler.generate_distance_score_chart("/home/victor/projects/final_proj_MR/images/distance_score.png")
+        self.math_handler.generate_sight_score_chart("/home/victor/projects/ConnectedExplorers/images/sight_score.png")
+        self.math_handler.generate_distance_score_chart("/home/victor/projects/ConnectedExplorers/images/distance_score.png")
 
 
 def main(args=None):

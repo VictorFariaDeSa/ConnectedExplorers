@@ -5,7 +5,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch.actions import IncludeLaunchDescription, GroupAction, TimerAction
 import json
 
-BRINGUP_PACKAGE = 'mobile_robot_bringup'
+BRINGUP_PACKAGE = 'connected_explorers_bringup'
 MAP_NAME = 'my_map.yaml'
 RVIZ_CONFIG_FILE = "point_rviz_config.rviz"
 USE_SIM_TIME = False
@@ -41,7 +41,7 @@ def get_robots_functions(robots):
     return json.dumps(robots_dict)
 
 map_file = os.path.join(get_package_share_directory(BRINGUP_PACKAGE), 'maps', MAP_NAME)
-rviz_config_file = os.path.join(get_package_share_directory(BRINGUP_PACKAGE), 'config', RVIZ_CONFIG_FILE)
+rviz_config_file = os.path.join(get_package_share_directory(BRINGUP_PACKAGE), 'config/rviz', RVIZ_CONFIG_FILE)
 
 def get_robot_nav_file(robot_name):
     return os.path.join(get_package_share_directory(

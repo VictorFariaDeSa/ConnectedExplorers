@@ -52,7 +52,7 @@ class RobotsMathNode(Node):
         if not self.robots_list:
             return
 
-        dir_path = "/home/victor/projects/final_proj_MR/data"
+        dir_path = "/home/victor/projects/ConnectedExplorers/data"
         file_name = "poses_log.csv"
         full_path = os.path.join(dir_path, file_name)
 
@@ -87,7 +87,7 @@ class RobotsMathNode(Node):
 
     
     def write_fiedler(self):
-        dir_path = "/home/victor/projects/final_proj_MR/data"
+        dir_path = "/home/victor/projects/ConnectedExplorers/data"
         file_name = "fiedler_log.csv"
         full_path = os.path.join(dir_path, file_name)
 

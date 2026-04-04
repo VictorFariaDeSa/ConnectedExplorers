@@ -26,7 +26,6 @@ setup(
         'console_scripts': [
             "RobotsPositionNode = line_viewer.RobotsPositionNode:main",
             "RobotsMathNode = line_viewer.RobotsMathNode:main",
-            "SightMarkerNode = line_viewer.SightMarkerNode:main",
             "RobotsControllerNode = line_viewer.RobotsControllerNode:main",
             "DataRecorderNode = line_viewer.DataRecorderNode:main",
             "SingleRobotControllerNode = line_viewer.SingleRobotControllerNode:main",

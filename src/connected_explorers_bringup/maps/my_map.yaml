@@ -1,4 +1,4 @@
-image: /home/victor/projects/final_proj_MR/src/mobile_robot_bringup/maps/my_map.pgm
+image: /home/victor/projects/ConnectedExplorers/src/connected_explorers_bringup/maps/my_map.pgm
 mode: trinary
 resolution: 0.050
 origin: [-9.975, -9.953, 0]

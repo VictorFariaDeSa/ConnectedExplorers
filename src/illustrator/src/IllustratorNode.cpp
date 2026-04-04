@@ -11,7 +11,7 @@
 #include "geometry_msgs/msg/point.hpp"
 
 // custom messages
-#include "my_robot_interfaces/msg/robot_task.hpp"
+#include "connected_explorers_interfaces/msg/robot_task.hpp"
 
 // custom files
 #include "illustrator/MarkerDesigner.hpp"
@@ -47,7 +47,7 @@ private:
 private:
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr laplacian_matrix_subscriber_;
     std::vector<rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr> pose_subscriber_list_;
-    std::vector<rclcpp::Subscription<my_robot_interfaces::msg::RobotTask>::SharedPtr> role_subscriber_list_;
+    std::vector<rclcpp::Subscription<connected_explorers_interfaces::msg::RobotTask>::SharedPtr> role_subscriber_list_;
 
 // timers ---
 private:
@@ -62,7 +62,7 @@ private:
 private:
     std::vector<geometry_msgs::msg::Pose> latest_poses_;
     std_msgs::msg::Float64MultiArray latest_laplacian_matrix_;
-    std::vector<my_robot_interfaces::msg::RobotTask> latest_robots_roles_;
+    std::vector<connected_explorers_interfaces::msg::RobotTask> latest_robots_roles_;
 // mutex --
 private:
     std::mutex poses_mutex_;
@@ -192,11 +192,11 @@ private:
         for (int i = 0;i<number_of_robots_;i++){
             std::string topic_name = robot_name_prefix_ + std::to_string(i+1) + "/role"; //TODO review this role topic name
             
-            rclcpp::Subscription<my_robot_interfaces::msg::RobotTask>::SharedPtr subscription = 
-            this->create_subscription<my_robot_interfaces::msg::RobotTask>(
+            rclcpp::Subscription<connected_explorers_interfaces::msg::RobotTask>::SharedPtr subscription = 
+            this->create_subscription<connected_explorers_interfaces::msg::RobotTask>(
                 topic_name, 
                 QOS_STD_PROFILE,
-                [this, i](const my_robot_interfaces::msg::RobotTask::SharedPtr msg) {
+                [this, i](const connected_explorers_interfaces::msg::RobotTask::SharedPtr msg) {
                     this->role_subscriber_callback(msg, i);
                 }
             );
@@ -224,7 +224,7 @@ private:
         latest_poses_[robot_index] = *msg;
     }
 
-    void role_subscriber_callback(const my_robot_interfaces::msg::RobotTask::SharedPtr msg, int robot_index){
+    void role_subscriber_callback(const connected_explorers_interfaces::msg::RobotTask::SharedPtr msg, int robot_index){
         std::lock_guard<std::mutex> lock(roles_mutex_);
         latest_robots_roles_[robot_index] = *msg;
     }
@@ -243,8 +243,8 @@ private:
         pose_subscriber_list_.reserve(number_of_robots_);
         latest_poses_.resize(number_of_robots_);
         
-        my_robot_interfaces::msg::RobotTask default_role;
-        default_role.current_task = my_robot_interfaces::msg::RobotTask::IDLE;
+        connected_explorers_interfaces::msg::RobotTask default_role;
+        default_role.current_task = connected_explorers_interfaces::msg::RobotTask::IDLE;
         latest_robots_roles_.resize(number_of_robots_, default_role);
     }
 

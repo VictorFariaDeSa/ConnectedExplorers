@@ -1,6 +1,6 @@
 #include "illustrator/ColorClassifier.hpp"
 
-#include "my_robot_interfaces/msg/robot_task.hpp"
+#include "connected_explorers_interfaces/msg/robot_task.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -10,7 +10,7 @@
 #define DIST_LIM 0.0
 
 
-using RobotTask = my_robot_interfaces::msg::RobotTask;
+using RobotTask = connected_explorers_interfaces::msg::RobotTask;
 
 ColorClassifier::ColorClassifier()
 {

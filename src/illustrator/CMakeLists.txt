@@ -10,7 +10,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
-find_package(my_robot_interfaces REQUIRED)
+find_package(connected_explorers_interfaces REQUIRED)
 
 add_executable(illustrator_node 
   src/IllustratorNode.cpp
@@ -27,7 +27,7 @@ ament_target_dependencies(illustrator_node
   rclcpp 
   std_msgs 
   visualization_msgs 
-  my_robot_interfaces
+  connected_explorers_interfaces
 )
 
 install(TARGETS

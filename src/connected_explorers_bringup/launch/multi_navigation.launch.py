@@ -94,7 +94,7 @@ def get_robots_functions(robots):
 ********************************************************************************
 '''
 description_pkg = 'mobile_robot_description'
-bringup_pkg = 'mobile_robot_bringup'
+bringup_pkg = 'connected_explorers_bringup'
 
 '''
 ********************************************************************************
@@ -113,7 +113,7 @@ urdf_path = os.path.join(
     )
 
 model_path = os.path.join(
-    get_package_share_directory('mobile_robot_bringup'),
+    get_package_share_directory('connected_explorers_bringup'),
     'models'
 )
 gazebo_config_path = os.path.join(
@@ -145,12 +145,12 @@ map_file = os.path.join(
 
 def get_robot_nav_yaml_file(robot_name):
     return os.path.join(get_package_share_directory(
-        "mobile_robot_bringup"), "config", f"amcl_config_{robot_name}.yaml"
+        "connected_explorers_bringup"), "config", f"amcl_config_{robot_name}.yaml"
     )
 
 def get_robot_nav_file(robot_name):
     return os.path.join(get_package_share_directory(
-        "mobile_robot_bringup"), "config", f"nav2_planner_config_{robot_name}.yaml"
+        "connected_explorers_bringup"), "config", f"nav2_planner_config_{robot_name}.yaml"
     )
 
 '''
@@ -388,18 +388,22 @@ def generate_launch_description():
     )
     launch_nodes.append(marker_node)
 
-    marker_node = Node(
-        package="line_viewer",
-        executable="SightMarkerNode",
-        name="SightMarkerNode",
-        parameters=[
-            {"robots_list":get_all_robot_names(robots)},
-            {"reference_frame":"map"},
-            {"publisher_node_name":"visualization_marker"}
+    # marker_node = Node(
+    #     package="line_viewer",
+    #     executable="SightMarkerNode",
+    #     name="SightMarkerNode",
+    #     parameters=[
+    #         {"robots_list":get_all_robot_names(robots)},
+    #         {"reference_frame":"map"},
+    #         {"publisher_node_name":"visualization_marker"}
 
-        ]
-    )
-    launch_nodes.append(marker_node)
+    #     ]
+    # )
+    # launch_nodes.append(marker_node)
+
+    
+
+
 
     # marker_node = Node(
     #     package="line_viewer",

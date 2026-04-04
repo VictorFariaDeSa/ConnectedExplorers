@@ -25,7 +25,7 @@ robots = [
 ********************************************************************************
 '''
 description_pkg = 'mobile_robot_description'
-bringup_pkg = 'mobile_robot_bringup'
+bringup_pkg = 'connected_explorers_bringup'
 
 
 '''
