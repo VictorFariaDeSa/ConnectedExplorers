@@ -11,8 +11,7 @@ from typing import Dict
 from rclpy.qos import QoSProfile
 from functools import partial
 from std_msgs.msg import Float64MultiArray
-from std_msgs.msg import Bool
-
+from connected_explorers_interfaces.msg import SyncState
 
 EPSILON = 0.3
 GAMMA = 3
@@ -60,6 +59,16 @@ class SingleRobotControllerNode(Node):
         self.matrix_handler = MatrixHandler(self.n_robots)
         self.gradient_vector = np.zeros((self.n_robots*2,1))
         self.active = True
+
+
+
+        self.move_epoch = 0
+        self.phase = SyncState.PHASE_CALCULATING
+
+
+
+
+
 
         '''
         ************************************************************************
@@ -166,10 +175,16 @@ class SingleRobotControllerNode(Node):
 
         # self.nav2_vel_vector[0, 0] = float(vx)
         # self.nav2_vel_vector[1, 0] = float(vy)
+
+        # if self.phase == SyncState.PHASE_WAITING:
+
+        self.phase = SyncState.PHASE_CALCULATING
+        self.micro_step = 0
+
         self.nav2_vel_vector[0, 0] = msg.linear.x
         self.nav2_vel_vector[1, 0] = msg.linear.y
         self.last_cmd_time = self.get_clock().now()
-            
+                
 
     def toggle_callback(self, msg):
         self.active = not self.active
@@ -204,6 +219,7 @@ class SingleRobotControllerNode(Node):
     * Helpers
     ****************************************************************************
     '''
+
     def Get_robot_specifict_gradient_values(self):
         return self.gradient_vector[(self.robot_number-1)*2:(self.robot_number)*2]
 

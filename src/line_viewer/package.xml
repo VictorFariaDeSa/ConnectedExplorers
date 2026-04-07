@@ -17,7 +17,7 @@
 
   <exec_depend>python3-cvxpy</exec_depend>
   <exec_depend>python3-osqp</exec_depend>
-
+  <exec_depend>connected_explorers_interfaces</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>

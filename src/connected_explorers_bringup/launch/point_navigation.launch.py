@@ -210,21 +210,15 @@ def generate_launch_description():
     )
     launch_nodes.append(marker_node)
 
-    marker_node = Node(
-        package="line_viewer",
-        executable="RobotsMathNode",
-        name="RobotsMathNode",
+    supervisor_node = Node(
+        package="connected_explorers_global_supervisor",
+        executable="supervisor_node",
         parameters=[
-            {"robots_list":get_all_robot_names(robots)},
-            {"sight_score_offset":      SIGHT_SCORE_OFFSET},
-            {"sight_score_scale":       SIGHT_SCORE_SCALE},
-            {"distance_score_offset":   DISTANCE_SCORE_OFFSET},
-            {"distance_score_scale":    DISTANCE_SCORE_SCALE},
-            {"laplacian_topic_name":"laplacian_matrix"},
-
+            {"number_of_robots":len(get_all_robot_names(robots))},
+            {"robot_name_prefix":"robot"},
         ]
     )
-    launch_nodes.append(marker_node)
+    launch_nodes.append(supervisor_node)
 
 
     for i,robot in enumerate(robots):

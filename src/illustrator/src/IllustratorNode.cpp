@@ -16,6 +16,7 @@
 // custom files
 #include "illustrator/MarkerDesigner.hpp"
 #include "illustrator/ColorClassifier.hpp"
+#include "connected_explorers_utils/MultiRobotsPoseHandler.hpp"
 
 /*******************************************************************************
 * DEFINES
@@ -24,6 +25,17 @@
 #define QOS_STD_PROFILE 10
 #define MARKER_PUBLISH_PERIOD_MS 100
 
+#define POSE_TOPIC_NAME "/position"
+#define ROLE_TOPIC_NAME "/role"
+
+// line configs ---
+#define LINE_MARKER_TOPIC_NAME "marker_lines"
+#define LINE_DEFAULT_SCALE 0.05
+#define LINE_DEFAULT_ALPHA 1.0
+
+// sphere configs ---
+#define SPHERE_MARKER_TOPIC_NAME "marker_spheres"
+#define SPEHRE_DEFAULT_DIAMETER 0.2
 /*******************************************************************************
 * Class definition and parameters
 *******************************************************************************/
@@ -35,8 +47,6 @@ private:
     int number_of_robots_;
     std::string robot_name_prefix_;
     std::string reference_map_frame_;
-    double line_alpha_;
-    double line_scale_;
 
 // publishers ---
 private:
@@ -46,26 +56,24 @@ private:
 // subscribers ---
 private:
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr laplacian_matrix_subscriber_;
-    std::vector<rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr> pose_subscriber_list_;
     std::vector<rclcpp::Subscription<connected_explorers_interfaces::msg::RobotTask>::SharedPtr> role_subscriber_list_;
 
 // timers ---
 private:
     rclcpp::TimerBase::SharedPtr markers_publisher_timer_;
+    rclcpp::TimerBase::SharedPtr init_timer_;
 
 // helpers ---
 private:
     std::unique_ptr<MarkerDesigner> designer_; //Estudar
     std::unique_ptr<ColorClassifier> palette_manager_;
-
+    std::unique_ptr<connected_explorers_utils::MultiRobotsPoseHandler> pose_handler_;
 // data ---
 private:
-    std::vector<geometry_msgs::msg::Pose> latest_poses_;
     std_msgs::msg::Float64MultiArray latest_laplacian_matrix_;
     std::vector<connected_explorers_interfaces::msg::RobotTask> latest_robots_roles_;
 // mutex --
 private:
-    std::mutex poses_mutex_;
     std::mutex laplacian_matrix_mutex_;
     std::mutex roles_mutex_;
 
@@ -84,35 +92,19 @@ public:
         node_param_name = "number_of_robots";
         this->declare_parameter<int>(node_param_name, 1);
         number_of_robots_ = this->get_parameter(node_param_name).as_int();
-        RCLCPP_INFO(this->get_logger(), "Illustrator initialized for %d robots", number_of_robots_);
+
         node_param_name = "robot_name_prefix";
         this->declare_parameter<std::string>(node_param_name, "robot_");
         robot_name_prefix_ = this->get_parameter(node_param_name).as_string();
 
         node_param_name = "reference_frame";
         this->declare_parameter<std::string>(node_param_name, "map");
-        reference_map_frame_ = this->get_parameter(node_param_name).as_string();
-
-        node_param_name = "line_alpha";
-        this->declare_parameter<double>(node_param_name, 1.0);
-        line_alpha_ = this->get_parameter(node_param_name).as_double();
-
-        node_param_name = "line_scale";
-        this->declare_parameter<double>(node_param_name, 0.05);
-        line_scale_ = this->get_parameter(node_param_name).as_double();
-
-
-        // helpers init ---
-        designer_ = std::make_unique<MarkerDesigner>(reference_map_frame_);
-        palette_manager_ = std::make_unique<ColorClassifier>();
-
-        resize_vectors();
-
-        // publishers and subscribers init ---
-        init_marker_publishers();
-        init_pose_subscribers();
-        init_role_subscribers();
-        init_laplacian_matrix_subscriber();
+        reference_map_frame_ = this->get_parameter(node_param_name).as_string();  
+        
+        init_timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(0), 
+            std::bind(&IllustratorNode::init, this)
+        );
     }
 
     ~IllustratorNode(){}
@@ -122,10 +114,34 @@ public:
 *******************************************************************************/
 private:
 
+    void init() {
+        init_timer_->cancel();
+        
+        designer_ = std::make_unique<MarkerDesigner>(reference_map_frame_);
+        palette_manager_ = std::make_unique<ColorClassifier>();
+        pose_handler_ = std::make_unique<connected_explorers_utils::MultiRobotsPoseHandler>(
+            this->shared_from_this(),
+            number_of_robots_,
+            robot_name_prefix_,
+            POSE_TOPIC_NAME,
+            QOS_STD_PROFILE
+        );
+
+        pose_handler_->InitPoseSubscribers();
+        
+        resize_vectors();
+        init_marker_publishers();
+        init_role_subscribers();
+        init_laplacian_matrix_subscriber();
+        
+        RCLCPP_INFO(this->get_logger(), "All systems initialized.");
+    }
+
+
     //pusblishers init ---
     void init_marker_publishers(){
-        line_marker_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("marker_lines", QOS_STD_PROFILE);
-        sphere_marker_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("marker_spheres", QOS_STD_PROFILE);
+        line_marker_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>(LINE_MARKER_TOPIC_NAME, QOS_STD_PROFILE);
+        sphere_marker_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>(SPHERE_MARKER_TOPIC_NAME, QOS_STD_PROFILE);
         
         markers_publisher_timer_ = this->create_wall_timer(
             std::chrono::milliseconds(MARKER_PUBLISH_PERIOD_MS), 
@@ -137,22 +153,23 @@ private:
         rclcpp::Time now = this->get_clock()->now();
         std::string line_ns = "lines";
         std::string sphere_ns = "spheres";
-        std::scoped_lock lock(poses_mutex_, laplacian_matrix_mutex_, roles_mutex_);
-        
-        if (latest_poses_.empty() || latest_laplacian_matrix_.data.empty()) {
+        std::scoped_lock lock(laplacian_matrix_mutex_, roles_mutex_);
+        std::vector<geometry_msgs::msg::Pose> robots_poses = pose_handler_->GetRobotsPoses();
+
+        if (robots_poses.empty() || latest_laplacian_matrix_.data.empty()) {
             return; 
         }
 
-        visualization_msgs::msg::Marker line_marker = designer_->GetBaseLineMarkers(now, line_ns, line_scale_);
-        visualization_msgs::msg::Marker sphere_marker = designer_->GetBaseSphereMarkers(now, sphere_ns, 0.2);
+        visualization_msgs::msg::Marker line_marker = designer_->GetBaseLineMarkers(now, line_ns, LINE_DEFAULT_SCALE);
+        visualization_msgs::msg::Marker sphere_marker = designer_->GetBaseSphereMarkers(now, sphere_ns, SPEHRE_DEFAULT_DIAMETER);
 
         for (int i = 0; i < number_of_robots_; i++){
-            geometry_msgs::msg::Point p_i = latest_poses_[i].position;
+            geometry_msgs::msg::Point p_i = robots_poses[i].position;
             std_msgs::msg::ColorRGBA color_i = palette_manager_->GetColorByTask(latest_robots_roles_[i].current_task);
             designer_->AddSphereToMarkerMsg(sphere_marker, p_i, color_i);
             for (int j = i + 1; j < number_of_robots_; j++) {
                 int matrix_idx = (i * number_of_robots_) + j;
-                geometry_msgs::msg::Point p_j = latest_poses_[j].position;
+                geometry_msgs::msg::Point p_j = robots_poses[j].position;
                 float score = latest_laplacian_matrix_.data[matrix_idx];
                 std_msgs::msg::ColorRGBA line_color = palette_manager_->GetColorByScore(score);
                 designer_->AddLineToMarkerMsg(
@@ -171,26 +188,9 @@ private:
 
 
     // subscribers init ---
-    void init_pose_subscribers(){
-        for (int i = 0;i<number_of_robots_;i++){
-            std::string topic_name = robot_name_prefix_ + std::to_string(i+1) + "/position"; //TODO review this position topic name
-
-            rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr subscription = 
-            this->create_subscription<geometry_msgs::msg::Pose>(
-                topic_name, 
-                QOS_STD_PROFILE,
-                [this, i](const geometry_msgs::msg::Pose::SharedPtr msg) {
-                    this->pose_subscriber_callback(msg, i);
-                }
-            );
-
-            pose_subscriber_list_.push_back(subscription);
-        }
-    }
-
     void init_role_subscribers(){
         for (int i = 0;i<number_of_robots_;i++){
-            std::string topic_name = robot_name_prefix_ + std::to_string(i+1) + "/role"; //TODO review this role topic name
+            std::string topic_name = robot_name_prefix_ + std::to_string(i+1) + ROLE_TOPIC_NAME; //TODO review this role topic name
             
             rclcpp::Subscription<connected_explorers_interfaces::msg::RobotTask>::SharedPtr subscription = 
             this->create_subscription<connected_explorers_interfaces::msg::RobotTask>(
@@ -216,14 +216,7 @@ private:
     }
 
 
-
-
-    // subscribers callback functions ---
-    void pose_subscriber_callback(const geometry_msgs::msg::Pose::SharedPtr msg, int robot_index){
-        std::lock_guard<std::mutex> lock(poses_mutex_);
-        latest_poses_[robot_index] = *msg;
-    }
-
+    // callbacks definitions
     void role_subscriber_callback(const connected_explorers_interfaces::msg::RobotTask::SharedPtr msg, int robot_index){
         std::lock_guard<std::mutex> lock(roles_mutex_);
         latest_robots_roles_[robot_index] = *msg;
@@ -240,9 +233,6 @@ private:
 
 private:
     void resize_vectors(){
-        pose_subscriber_list_.reserve(number_of_robots_);
-        latest_poses_.resize(number_of_robots_);
-        
         connected_explorers_interfaces::msg::RobotTask default_role;
         default_role.current_task = connected_explorers_interfaces::msg::RobotTask::IDLE;
         latest_robots_roles_.resize(number_of_robots_, default_role);

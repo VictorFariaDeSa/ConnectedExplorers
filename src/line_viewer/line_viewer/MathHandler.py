@@ -1,7 +1,6 @@
 
 import numpy as np
 from .RobotClass import RobotClass
-from .MapHandler import MapHandler, Cell, GridLine
 from typing import TYPE_CHECKING, List
 import copy
 from geometry_msgs.msg import Point
