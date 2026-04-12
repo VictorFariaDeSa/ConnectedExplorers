@@ -12,6 +12,7 @@ find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(connected_explorers_utils REQUIRED)
 find_package(connected_explorers_interfaces REQUIRED)
+find_package(connected_explorers_laplacian_matrix REQUIRED)
 
 add_executable(supervisor_node 
   src/GlobalSupervisorNode.cpp
@@ -34,7 +35,7 @@ target_link_libraries(supervisor_node
   connected_explorers_utils::multi_robot_utils
   connected_explorers_utils::map_utils
   connected_explorers_utils::conn_weight_utils
-  connected_explorers_utils::laplacian_matrix_utils
+  connected_explorers_laplacian_matrix::laplacian_matrix_utils
 )
 
 install(TARGETS

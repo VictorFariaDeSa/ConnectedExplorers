@@ -1,4 +1,4 @@
-#include "connected_explorers_utils/LaplacianMatrixHandler.hpp"
+#include "connected_explorers_laplacian_matrix/LaplacianMatrixHandler.hpp"
 
 
 namespace connected_explorers_utils{
@@ -96,6 +96,30 @@ std_msgs::msg::Float64MultiArray LaplacianMatrixHandler::GetLaplacianMsg() {
     }
 
     return msg;
+}
+
+void LaplacianMatrixHandler::SetLaplacianFromMsg(const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
+    if (msg->layout.dim.size() < 2) {
+        return;
+    }
+
+    int rows = msg->layout.dim[0].size;
+    int cols = msg->layout.dim[1].size;
+
+    if (msg->data.size() != static_cast<size_t>(rows * cols)) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(matrix_mutex_);
+
+    laplacian_matrix_.resize(rows, cols);
+
+    int k = 0;
+    for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < cols; ++j) {
+            laplacian_matrix_(i, j) = msg->data[k++];
+        }
+    }
 }
 
 Eigen::MatrixXd LaplacianMatrixHandler::GetLaplacianMatrix() {

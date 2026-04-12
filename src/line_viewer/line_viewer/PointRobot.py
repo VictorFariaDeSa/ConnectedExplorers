@@ -10,15 +10,17 @@ from tf2_ros import TransformBroadcaster
 
 # 1. Classe de Lógica Pura (Seguindo o exemplo)
 class PointRobot:
-    def __init__(self, x: float = 0.0, y: float = 0.0, yaw: float = 0.0):
+    def __init__(self, x: float = 0.0, y: float = 0.0, z: float = 0.0, yaw: float = 0.0):
         self.x = x
         self.y = y
+        self.z = z
         self.yaw = yaw
 
-    def step(self, dt, vx, vy, wz):
+    def step(self, dt, vx, vy, vz, wz):
         # Integração de Euler simples
         self.x += vx * dt
         self.y += vy * dt
+        self.z+= vz * dt
         self.yaw += wz * dt
         # Normalização do ângulo
         self.yaw = math.atan2(math.sin(self.yaw), math.cos(self.yaw))
@@ -35,17 +37,19 @@ class PointRobotNode(Node):
         # --- Handle Parameters ---
         self.declare_parameter("xPos", 0.0)
         self.declare_parameter("yPos", 0.0)
+        self.declare_parameter("zPos", 0.0)
         self.declare_parameter("yaw", 0.0)
         self.declare_parameter("dt", 0.05)
 
         self.x = self.get_parameter("xPos").get_parameter_value().double_value
         self.y = self.get_parameter("yPos").get_parameter_value().double_value
+        self.z = self.get_parameter("zPos").get_parameter_value().double_value
         self.yaw = self.get_parameter("yaw").get_parameter_value().double_value
         self.dt = self.get_parameter("dt").get_parameter_value().double_value
 
         # Estado Interno
         self.robot = PointRobot(self.x, self.y, self.yaw)
-        self.vx, self.vy, self.wz = 0.0, 0.0, 0.0
+        self.vx, self.vy,self.vz, self.wz = 0.0, 0.0, 0.0, 0.0
 
         # ROS 2 Infrastructure
         qos = QoSProfile(depth=10)
@@ -65,11 +69,12 @@ class PointRobotNode(Node):
     def cmd_callback(self, msg: Twist):
         self.vx = msg.linear.x
         self.vy = msg.linear.y
+        self.vz = msg.linear.z
         self.wz = msg.angular.z
 
     def update_physics(self):
         # Atualiza a cinemática
-        self.robot.step(self.dt, self.vx, self.vy, self.wz)
+        self.robot.step(self.dt, self.vx, self.vy, self.vz, self.wz)
         
         now = self.get_clock().now()
         self.broadcast_state(now)
@@ -89,11 +94,13 @@ class PointRobotNode(Node):
         
         odom.pose.pose.position.x = self.robot.x
         odom.pose.pose.position.y = self.robot.y
+        odom.pose.pose.position.y = self.robot.z
         odom.pose.pose.orientation.w = cy
         odom.pose.pose.orientation.z = sy
         
         odom.twist.twist.linear.x = self.vx
         odom.twist.twist.linear.y = self.vy
+        odom.twist.twist.linear.y = self.vz
         odom.twist.twist.angular.z = self.wz
         
         self.odom_pub.publish(odom)
@@ -106,6 +113,7 @@ class PointRobotNode(Node):
         
         t.transform.translation.x = self.robot.x
         t.transform.translation.y = self.robot.y
+        t.transform.translation.z = self.robot.z
         t.transform.rotation.w = cy
         t.transform.rotation.z = sy
         

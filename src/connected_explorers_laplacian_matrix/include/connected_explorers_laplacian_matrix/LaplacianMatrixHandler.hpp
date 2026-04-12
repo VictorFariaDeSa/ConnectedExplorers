@@ -32,6 +32,7 @@ public:
     double GetFiedlerValue();
     Eigen::VectorXd GetFiedlerVector();
     std_msgs::msg::Float64MultiArray GetLaplacianMsg();
+    void SetLaplacianFromMsg(const std_msgs::msg::Float64MultiArray::SharedPtr msg);
     Eigen::MatrixXd GetLaplacianMatrix();
     Eigen::MatrixXd GetAdjacencyMatrix();
 };  

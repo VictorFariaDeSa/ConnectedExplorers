@@ -4,7 +4,7 @@ uint8 PHASE_CONSENSUS=2
 uint8 PHASE_READY=3
 uint8 PHASE_MOVING=4
 
-string robot_id
+uint8 robot_index
 uint8 current_phase
 uint32 move_epoch
 uint32 micro_step

@@ -7,7 +7,6 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -38,15 +37,6 @@ target_include_directories(conn_weight_utils PUBLIC
   $<INSTALL_INTERFACE:include>)
 ament_target_dependencies(conn_weight_utils rclcpp geometry_msgs)
 
-# --- Laplacian Matrix Utils ---
-add_library(laplacian_matrix_utils src/LaplacianMatrixHandler.cpp)
-target_include_directories(laplacian_matrix_utils PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-
-# REMOVED "PUBLIC" here as well
-target_link_libraries(laplacian_matrix_utils Eigen3::Eigen)
-ament_target_dependencies(laplacian_matrix_utils rclcpp std_msgs)
 
 # --- Export and Install ---
 # Add ALL your libraries to the export list and install
@@ -59,7 +49,6 @@ install(TARGETS
   multi_robot_utils 
   map_utils
   conn_weight_utils
-  laplacian_matrix_utils
   EXPORT export_connected_explorers_utils
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib

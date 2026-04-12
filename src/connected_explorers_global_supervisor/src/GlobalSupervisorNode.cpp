@@ -62,7 +62,6 @@ private:
 
 // subscribers ---
 private:
-    std::vector<rclcpp::Subscription<connected_explorers_interfaces::msg::SyncState>::SharedPtr> robots_broadcast_subscribers_list_;
 
 // timers ---
 private:
