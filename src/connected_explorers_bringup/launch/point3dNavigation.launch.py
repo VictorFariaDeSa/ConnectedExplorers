@@ -1,0 +1,119 @@
+"""*****************************************************************************
+* Imports
+*****************************************************************************"""
+
+import os
+from ament_index_python.packages import get_package_share_directory
+
+from launch import LaunchDescription
+from launch_ros.actions import Node
+
+"""*****************************************************************************
+* Defines
+*****************************************************************************"""
+
+USE_SIM_TIME = False
+MAP_FRAME_ID = "map"
+
+
+# packages ---
+BRINGUP_PACKAGE = 'connected_explorers_bringup'
+
+# files ---
+RVIZ_CONFIG_FILE = "point3d_config.rviz"
+MAP_FILE = "untitled.binvox.bt"
+
+
+"""*****************************************************************************
+* Data
+*****************************************************************************"""
+robots = [
+    {"name":"robot1","x":-2.5,"y":2.5,"z":5.0,"function":"task"},
+    {"name":"robot2","x":-2.5,"y":-2.5,"z":5.0,"function":"task"},
+    {"name":"robot3","x":2.5,"y":2.5,"z":5.0,"function":"conn"},
+    {"name":"robot4","x":2.5,"y":-2.5,"z":5.0,"function":"conn"},
+]
+
+
+
+"""*****************************************************************************
+* Config Files
+*****************************************************************************"""
+rviz_config_file = os.path.join(get_package_share_directory(BRINGUP_PACKAGE), 'config/rviz', RVIZ_CONFIG_FILE)
+map_file = os.path.join(get_package_share_directory(BRINGUP_PACKAGE), 'maps/3d', MAP_FILE)
+
+
+"""*****************************************************************************
+* launch
+*****************************************************************************"""
+def generate_launch_description():
+    launch_nodes = []
+
+    # rviz2 ---
+    launch_nodes.append(Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=['-d', rviz_config_file],
+        parameters=[{"use_sim_time": USE_SIM_TIME}]
+    ))
+
+    # map publisher ---
+    launch_nodes.append(Node(
+        package='octomap_server',
+        executable='octomap_server_node',
+        name='octomap_server',
+        parameters=[{
+            "octomap_path": map_file,
+            "frame_id": MAP_FRAME_ID,
+            "use_sim_time": USE_SIM_TIME
+        }]
+    ))
+
+    # map tf ---
+    launch_nodes.append(Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='static_transform_publisher_world_to_map',
+        arguments=[
+            '--x', '0', 
+            '--y', '0', 
+            '--z', '0', 
+            '--roll', '1.57', 
+            '--pitch', '0', 
+            '--yaw', '0', 
+            '--frame-id', 'world', 
+            '--child-frame-id', 'map'
+        ]
+    ))
+
+    for robot in robots:
+        name = robot["name"]
+        launch_nodes.append(Node(
+            package="line_viewer",
+            executable="PointRobotNode",
+            name="PointRobotNode",
+            namespace=name,
+            remappings=[
+                ('/tf', '/tf'),
+                ('/tf_static', '/tf_static')
+            ],
+            parameters=[{
+                "xPos": robot["x"],
+                "yPos": robot["y"], 
+                "zPos": robot["z"], 
+                "yaw": 0.0, 
+                "task": robot["function"],
+                "use_sim_time": USE_SIM_TIME,
+                "frame_id":"world"
+            }]
+        ))
+
+
+
+
+
+
+
+
+    return LaunchDescription(launch_nodes)

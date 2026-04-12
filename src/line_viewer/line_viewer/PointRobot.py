@@ -40,15 +40,17 @@ class PointRobotNode(Node):
         self.declare_parameter("zPos", 0.0)
         self.declare_parameter("yaw", 0.0)
         self.declare_parameter("dt", 0.05)
+        self.declare_parameter("frame_id","map")
 
         self.x = self.get_parameter("xPos").get_parameter_value().double_value
         self.y = self.get_parameter("yPos").get_parameter_value().double_value
         self.z = self.get_parameter("zPos").get_parameter_value().double_value
         self.yaw = self.get_parameter("yaw").get_parameter_value().double_value
         self.dt = self.get_parameter("dt").get_parameter_value().double_value
+        self.frame_id = self.get_parameter("frame_id").get_parameter_value().string_value
 
         # Estado Interno
-        self.robot = PointRobot(self.x, self.y, self.yaw)
+        self.robot = PointRobot(self.x, self.y, self.z, self.yaw)
         self.vx, self.vy,self.vz, self.wz = 0.0, 0.0, 0.0, 0.0
 
         # ROS 2 Infrastructure
@@ -94,13 +96,13 @@ class PointRobotNode(Node):
         
         odom.pose.pose.position.x = self.robot.x
         odom.pose.pose.position.y = self.robot.y
-        odom.pose.pose.position.y = self.robot.z
+        odom.pose.pose.position.z = self.robot.z
         odom.pose.pose.orientation.w = cy
         odom.pose.pose.orientation.z = sy
         
         odom.twist.twist.linear.x = self.vx
         odom.twist.twist.linear.y = self.vy
-        odom.twist.twist.linear.y = self.vz
+        odom.twist.twist.linear.z = self.vz
         odom.twist.twist.angular.z = self.wz
         
         self.odom_pub.publish(odom)
@@ -108,7 +110,7 @@ class PointRobotNode(Node):
 
         t = TransformStamped()
         t.header.stamp = now.to_msg()
-        t.header.frame_id = "map"
+        t.header.frame_id = self.frame_id
         t.child_frame_id = child_frame
         
         t.transform.translation.x = self.robot.x
