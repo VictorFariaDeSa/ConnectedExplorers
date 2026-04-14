@@ -47,8 +47,6 @@ geometry_msgs::msg::Point MapHandler::PixelToPosition(int col, int row) {
     float origin_y = occupancy_grid_.info.origin.position.y;
     float res = occupancy_grid_.info.resolution;
 
-    // 1. Multiply index by resolution and add the origin offset
-    // Adding 0.5 * res ensures you get the center of the cell, not the corner
     p.x = origin_x + (static_cast<float>(col) + 0.5f) * res;
     p.y = origin_y + (static_cast<float>(row) + 0.5f) * res;
     p.z = 0.0;

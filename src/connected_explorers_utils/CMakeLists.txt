@@ -25,8 +25,6 @@ add_library(map_utils src/MapHandler.cpp)
 target_include_directories(map_utils PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-
-# REMOVED "PUBLIC" here to match ament_target_dependencies' style
 target_link_libraries(map_utils ${OpenCV_LIBRARIES}) 
 ament_target_dependencies(map_utils rclcpp geometry_msgs nav_msgs)
 

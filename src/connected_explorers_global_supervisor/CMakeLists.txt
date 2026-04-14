@@ -18,12 +18,8 @@ add_executable(supervisor_node
   src/GlobalSupervisorNode.cpp
 )
 
-target_include_directories(supervisor_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
-
-ament_target_dependencies(supervisor_node 
+ament_target_dependencies(
+  supervisor_node 
   rclcpp 
   std_msgs 
   geometry_msgs

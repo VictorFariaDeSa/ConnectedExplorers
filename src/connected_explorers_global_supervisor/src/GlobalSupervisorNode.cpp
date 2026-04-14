@@ -29,7 +29,7 @@ plausible communication between the robots
 // custom files
 #include "connected_explorers_utils/MultiRobotsPoseHandler.hpp"
 #include "connected_explorers_utils/ConnWeightHandler.hpp"
-#include "connected_explorers_utils/LaplacianMatrixHandler.hpp"
+#include "connected_explorers_laplacian_matrix/LaplacianMatrixHandler.hpp"
 #include "connected_explorers_utils/MapHandler.hpp"
 
 /*******************************************************************************
