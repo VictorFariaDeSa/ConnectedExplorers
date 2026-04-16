@@ -5,9 +5,9 @@
 #include <algorithm>
 #include <cmath>
 
-#define ALPHA -3.0
-#define BETA 1.0
-#define DIST_LIM 0.0
+#define ALPHA -6.0
+#define BETA 0.5
+#define DIST_LIM 0.2
 
 
 using RobotTask = connected_explorers_interfaces::msg::RobotTask;

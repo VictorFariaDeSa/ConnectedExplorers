@@ -25,6 +25,7 @@ plausible communication between the robots
 
 // custom messages
 #include "connected_explorers_interfaces/msg/sync_state.hpp"
+#include "connected_explorers_interfaces/msg/line_clearance_array.hpp"
 
 // custom files
 #include "connected_explorers_utils/MultiRobotsPoseHandler.hpp"
@@ -62,6 +63,7 @@ private:
 
 // subscribers ---
 private:
+    rclcpp::Subscription<connected_explorers_interfaces::msg::LineClearanceArray>::SharedPtr conn_weights_subscriber_;
 
 // timers ---
 private:
@@ -160,9 +162,24 @@ private:
 
         StartLaplacianMatrixPublisher();
         StartFiedlerGradientPublisher();
-
+        init_conn_weights_subcriber();
         
         RCLCPP_INFO(this->get_logger(), "All systems initialized.");
+    }
+
+    void init_conn_weights_subcriber(){
+        conn_weights_subscriber_ = 
+        this->create_subscription<connected_explorers_interfaces::msg::LineClearanceArray>(
+            "/line_clearance",
+            QOS_STD_PROFILE,
+            std::bind(&GlobalSupervisorNode::conn_weights_subscriber_callback,this,std::placeholders::_1)
+        );
+    }
+
+    void conn_weights_subscriber_callback(const connected_explorers_interfaces::msg::LineClearanceArray msg){
+        for (connected_explorers_interfaces::msg::LineClearance conn:msg.clearances){
+            laplacian_matrix_handler_->UpdateConnWeight(conn.weight,conn.robot1_id,conn.robot2_id);
+        }
     }
 
     void StartLaplacianMatrixPublisher() {
@@ -204,15 +221,6 @@ private:
 
 
     void OnLaplacianTimerTick() {
-        std::vector<geometry_msgs::msg::Pose> poses = pose_handler_->GetRobotsPoses();
-        if (poses.size() < 2) {
-            RCLCPP_INFO(this->get_logger(), "poses.size() < 2");
-            return;
-        }
-        // for (geometry_msgs::msg::Pose pose:poses){
-        //     RCLCPP_INFO(this->get_logger(),"x: %f | y: %f",pose.position.x,pose.position.y);
-        // }
-        UpdateLaplacianWeights(poses);
         PublishLaplacianData();
     }
 

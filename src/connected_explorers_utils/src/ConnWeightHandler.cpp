@@ -25,7 +25,7 @@ float ConnWeightHandler::CalculateDistanceBetweenPoints(
     const geometry_msgs::msg::Point& p1, 
     const geometry_msgs::msg::Point& p2
 ){
-    return sqrt(std::pow(p1.x-p2.x, 2)+std::pow(p1.y-p2.y, 2));
+    return sqrt(std::pow(p1.x-p2.x, 2)+std::pow(p1.y-p2.y, 2)+std::pow(p1.z-p2.z, 2));
 }
 
 float ConnWeightHandler::CalculateGenericScore(

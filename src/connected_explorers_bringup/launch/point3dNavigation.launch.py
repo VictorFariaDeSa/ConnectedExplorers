@@ -81,11 +81,11 @@ def generate_launch_description():
             '--x', '0', 
             '--y', '0', 
             '--z', '0', 
-            '--roll', '1.57', 
+            '--roll', '-1.57', 
             '--pitch', '0', 
             '--yaw', '0', 
-            '--frame-id', 'world', 
-            '--child-frame-id', 'map'
+            '--frame-id', 'map', 
+            '--child-frame-id', 'world'
         ]
     ))
 
@@ -126,7 +126,7 @@ def generate_launch_description():
         name="RobotsPositionNode",
         parameters=[
             {"robots_list":get_all_robot_names(robots)},
-            {"reference_frame":"world"}
+            {"reference_frame":"map"}
         ]
     )
     launch_nodes.append(pos_node)
@@ -137,11 +137,22 @@ def generate_launch_description():
         executable="illustrator_node",
         name="illustrator_node",
         parameters=[
-            {"number_of_robots":len(get_all_robot_names(robots))},
+            {"number_of_robots":len(robots)},
             {"robot_name_prefix":"robot"},
-            {"reference_frame":"world"},
+            {"reference_frame":"map"},
         ]
     )
     launch_nodes.append(marker_node)
+
+    supervisor_node = Node(
+        package="connected_explorers_global_supervisor",
+        executable="supervisor_node",
+        parameters=[
+            {"number_of_robots":len(robots)},
+            {"robot_name_prefix":"robot"},
+        ]
+    )
+    launch_nodes.append(supervisor_node)
+
 
     return LaunchDescription(launch_nodes)

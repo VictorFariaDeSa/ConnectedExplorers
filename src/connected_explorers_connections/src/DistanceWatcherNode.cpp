@@ -28,7 +28,6 @@
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
 // custom messages
-#include "connected_explorers_interfaces/msg/line_clearance.hpp"
 #include "connected_explorers_interfaces/msg/line_clearance_array.hpp"
 
 
@@ -174,24 +173,34 @@ private:
             for (int j=i+1; j<number_of_robots_;j++){
                 geometry_msgs::msg::Pose pj = pose_handler_->GetRobotsPoses()[j];
                         
-                RCLCPP_INFO(this->get_logger(),"i: %d | j: %d",i,j);
-
                 std::vector<std::array<int, 3>> line = GetLineBetweenPoints(
                     pi.position.x,pi.position.y,pi.position.z,
                     pj.position.x,pj.position.y,pj.position.z
                 );
 
                 double distance = GetLineDistanceToObstacle(line);
+                
+                
+                double points_distance = conn_handler_->CalculateDistanceBetweenPoints(pi.position,pj.position);
+                
+                
+                double los_score = conn_handler_->CalculateLoSScore(distance);
+                double dist_score = conn_handler_->CalculateDistanceScore(points_distance);
+
+                double final_score = los_score*dist_score;
+
+
+
                 connected_explorers_interfaces::msg::LineClearance single_clearance;
                 single_clearance.robot1_id = i;
                 single_clearance.robot2_id = j;
+                single_clearance.weight = final_score;
                 single_clearance.distance = distance;
                 batch_msg.clearances.push_back(single_clearance);
             }
         }
         line_clearance_publisher_->publish(batch_msg);
 
-        RCLCPP_INFO(this->get_logger(),"publishing info");
     }
 
 

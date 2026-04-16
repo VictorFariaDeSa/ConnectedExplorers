@@ -22,7 +22,7 @@ public:
     );
 
     
-private:
+public:
     
     static float CalculateDistanceBetweenPoints(const geometry_msgs::msg::Point& p1, 
                                                const geometry_msgs::msg::Point& p2);
