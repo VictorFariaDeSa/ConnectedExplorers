@@ -157,7 +157,8 @@ private:
             0.5f
         );
         laplacian_matrix_handler_ = std::make_unique<connected_explorers_utils::LaplacianMatrixHandler>(
-            number_of_robots_
+            number_of_robots_,
+            3
         );
 
         StartLaplacianMatrixPublisher();
@@ -179,6 +180,12 @@ private:
     void conn_weights_subscriber_callback(const connected_explorers_interfaces::msg::LineClearanceArray msg){
         for (connected_explorers_interfaces::msg::LineClearance conn:msg.clearances){
             laplacian_matrix_handler_->UpdateConnWeight(conn.weight,conn.robot1_id,conn.robot2_id);
+            Eigen::RowVectorXd d1(3);
+            d1 << conn.dx1, conn.dy1, conn.dz1;   
+            laplacian_matrix_handler_->UpdateGradientData(conn.robot1_id,conn.robot2_id,d1);
+            Eigen::RowVectorXd d2(3);
+            d2 << conn.dx2, conn.dy2, conn.dz2;   
+            laplacian_matrix_handler_->UpdateGradientData(conn.robot2_id,conn.robot1_id,d2);
         }
     }
 
@@ -196,14 +203,16 @@ private:
 
 
     void PublishFiedlerGradient(){
-        Eigen::VectorXd gradient = GetGradientVectorNumericWay(0.5);
+        laplacian_matrix_handler_->UpdateGradientVector();
+        std::vector<double> gradient = laplacian_matrix_handler_->GetGradient();
+        Eigen::VectorXd eigen_vec = Eigen::Map<Eigen::VectorXd>(gradient.data(), gradient.size());
         auto msg = std_msgs::msg::Float64MultiArray();
 
         // 1. Setup Rows (N_robots * 2)
         std_msgs::msg::MultiArrayDimension dim_rows;
         dim_rows.label = "rows";
-        dim_rows.size = gradient.size();
-        dim_rows.stride = gradient.size() * 1; // rows * cols
+        dim_rows.size = eigen_vec.size();
+        dim_rows.stride = eigen_vec.size() * 1; // rows * cols
         msg.layout.dim.push_back(dim_rows);
 
         // 2. Setup Cols (Always 1 for a vector to keep it 2D)
@@ -214,7 +223,7 @@ private:
         msg.layout.dim.push_back(dim_cols);
 
         // 3. Assign data
-        msg.data.assign(gradient.data(), gradient.data() + gradient.size());
+        msg.data.assign(eigen_vec.data(), eigen_vec.data() + eigen_vec.size());
 
         fiedler_gradient_publisher_->publish(msg);
     }
@@ -222,23 +231,6 @@ private:
 
     void OnLaplacianTimerTick() {
         PublishLaplacianData();
-    }
-
-    void UpdateLaplacianWeights(const std::vector<geometry_msgs::msg::Pose>& poses) {
-        for (size_t i = 0; i < poses.size() - 1; ++i) {
-            for (size_t j = i + 1; j < poses.size(); ++j) {
-                auto line = map_handler_->GetLineBetweenPoints(
-                    poses[i].position.x, poses[i].position.y, 
-                    poses[j].position.x, poses[j].position.y);
-
-                auto line_res = map_handler_->GetLineMinDistToObstacle(line);
-
-                float weight = conn_handler_->CalculateFinalScore(
-                    poses[i].position, poses[j].position, line_res.min_dist);
-                
-                laplacian_matrix_handler_->UpdateConnWeight(weight, i, j);
-            }
-        }
     }
 
     void PublishLaplacianData() {
@@ -250,62 +242,81 @@ private:
     }
 
 
-    double GenerateNumericLaplacianDerivative(const std::string& axis, int index, double dt) {
-        // 1. Setup local copy of the adjacency matrix
-        // Assuming matrix_handler_ returns an Eigen::MatrixXd
-        Eigen::MatrixXd new_adj = laplacian_matrix_handler_->GetAdjacencyMatrix();
-        auto poses = pose_handler_->GetRobotsPoses(); // geometry_msgs::msg::Pose
 
-        // 2. Perturb the target robot's position
-        geometry_msgs::msg::Point p1 = poses[index].position;
-        if (axis == "x") p1.x += dt;
-        else if (axis == "y") p1.y += dt;
 
-        // 3. Update only the edges connected to the perturbed robot
-        for (int i = 0; i < number_of_robots_; ++i) {
-            if (i == index) continue;
 
-            geometry_msgs::msg::Point p2 = poses[i].position;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//     double GenerateNumericLaplacianDerivative(const std::string& axis, int index, double dt) {
+//         Eigen::MatrixXd new_adj = laplacian_matrix_handler_->GetAdjacencyMatrix();
+//         auto poses = pose_handler_->GetRobotsPoses(); // geometry_msgs::msg::Pose
+
+//         // 2. Perturb the target robot's position
+//         geometry_msgs::msg::Point p1 = poses[index].position;
+//         if (axis == "x") p1.x += dt;
+//         else if (axis == "y") p1.y += dt;
+
+//         // 3. Update only the edges connected to the perturbed robot
+//         for (int i = 0; i < number_of_robots_; ++i) {
+//             if (i == index) continue;
+
+//             geometry_msgs::msg::Point p2 = poses[i].position;
             
-            // Use your connection handler from the previous step
-            auto line = map_handler_->GetLineBetweenPoints(
-                p1.x, p1.y, 
-                p2.x, p2.y
-            );
+//             // Use your connection handler from the previous step
+//             auto line = map_handler_->GetLineBetweenPoints(
+//                 p1.x, p1.y, 
+//                 p2.x, p2.y
+//             );
 
-            auto line_res = map_handler_->GetLineMinDistToObstacle(line);
-            double score = conn_handler_->CalculateFinalScore(p1, p2, line_res.min_dist);
+//             auto line_res = map_handler_->GetLineMinDistToObstacle(line);
+//             double score = conn_handler_->CalculateFinalScore(p1, p2, line_res.min_dist);
             
-            new_adj(index, i) = score;
-            new_adj(i, index) = score;
-        }
+//             new_adj(index, i) = score;
+//             new_adj(i, index) = score;
+//         }
 
-        // 4. Generate Laplacian: L = D - A
-        Eigen::VectorXd degrees = new_adj.rowwise().sum();
-        Eigen::MatrixXd new_laplacian = degrees.asDiagonal();
-        new_laplacian -= new_adj;
+//         // 4. Generate Laplacian: L = D - A
+//         Eigen::VectorXd degrees = new_adj.rowwise().sum();
+//         Eigen::MatrixXd new_laplacian = degrees.asDiagonal();
+//         new_laplacian -= new_adj;
 
-        // 5. Compute Eigenvalues
-        // SelfAdjointEigenSolver is faster and more stable for symmetric matrices (Laplacians)
-        Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(new_laplacian);
-        if (es.info() != Eigen::Success) return 0.0;
+//         // 5. Compute Eigenvalues
+//         // SelfAdjointEigenSolver is faster and more stable for symmetric matrices (Laplacians)
+//         Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(new_laplacian);
+//         if (es.info() != Eigen::Success) return 0.0;
 
-        double new_lambda_2 = es.eigenvalues()(1); // Second smallest eigenvalue
-        double old_lambda_2 = laplacian_matrix_handler_->GetFiedlerValue();
+//         double new_lambda_2 = es.eigenvalues()(1); // Second smallest eigenvalue
+//         double old_lambda_2 = laplacian_matrix_handler_->GetFiedlerValue();
 
-        return (new_lambda_2 - old_lambda_2) / dt;
-    }
+//         return (new_lambda_2 - old_lambda_2) / dt;
+//     }
 
-    Eigen::VectorXd GetGradientVectorNumericWay(double dt) {
-    Eigen::VectorXd gradient_vector = Eigen::VectorXd::Zero(number_of_robots_ * 2);
-    int counter = 0;
+//     Eigen::VectorXd GetGradientVectorNumericWay(double dt) {
+//     Eigen::VectorXd gradient_vector = Eigen::VectorXd::Zero(number_of_robots_ * 2);
+//     int counter = 0;
 
-    for (int r_index = 0; r_index < number_of_robots_; ++r_index) {
-        gradient_vector(counter++) = GenerateNumericLaplacianDerivative("x", r_index, dt);
-        gradient_vector(counter++) = GenerateNumericLaplacianDerivative("y", r_index, dt);
-    }
-    return gradient_vector;
-}
+//     for (int r_index = 0; r_index < number_of_robots_; ++r_index) {
+//         gradient_vector(counter++) = GenerateNumericLaplacianDerivative("x", r_index, dt);
+//         gradient_vector(counter++) = GenerateNumericLaplacianDerivative("y", r_index, dt);
+//     }
+//     return gradient_vector;
+// }
 
 
 

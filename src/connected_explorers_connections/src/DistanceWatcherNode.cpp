@@ -165,42 +165,59 @@ private:
 
     }
 
-    void PublishLineClearanceMsg(){
+
+    double CalculateScore(const geometry_msgs::msg::Pose& p1, const geometry_msgs::msg::Pose& p2) {
+        auto coord1 = TransformCoordInVoxel(p1.position.x, p1.position.y, p1.position.z, MAP_RESOLUTION);
+        auto coord2 = TransformCoordInVoxel(p2.position.x, p2.position.y, p2.position.z, MAP_RESOLUTION);
+
+        auto line = GetLineBetweenPoints(coord1, coord2);
+        double obs_dist = GetLineDistanceToObstacle(line);
+        double geo_dist = conn_handler_->CalculateDistanceBetweenPoints(p1.position, p2.position);
+
+        double dist_score = conn_handler_->CalculateDistanceScore(geo_dist);
+        double los_score = conn_handler_->CalculateLoSScore(obs_dist);
+
+        return dist_score * los_score;
+    }
+
+    void ComputeStepGradient(
+        geometry_msgs::msg::Pose p_move, 
+        const geometry_msgs::msg::Pose& p_fixed, 
+        double base_weight,
+        double eps,
+        double& dx, double& dy, double& dz
+    ) {
+        p_move.position.x += eps;
+        dx = CalculateScore(p_move, p_fixed) - base_weight;
+        p_move.position.x -= eps;
+
+        p_move.position.y += eps;
+        dy = CalculateScore(p_move, p_fixed) - base_weight;
+        p_move.position.y -= eps;
+
+        p_move.position.z += eps;
+        dz = CalculateScore(p_move, p_fixed) - base_weight;
+    }
+
+    void PublishLineClearanceMsg() {
         connected_explorers_interfaces::msg::LineClearanceArray batch_msg;
-        for (int i=0;i<number_of_robots_-1;i++){
-            geometry_msgs::msg::Pose pi = pose_handler_->GetRobotsPoses()[i];
-            
-            for (int j=i+1; j<number_of_robots_;j++){
-                geometry_msgs::msg::Pose pj = pose_handler_->GetRobotsPoses()[j];
-                        
-                std::vector<std::array<int, 3>> line = GetLineBetweenPoints(
-                    pi.position.x,pi.position.y,pi.position.z,
-                    pj.position.x,pj.position.y,pj.position.z
-                );
+        const auto& robot_poses = pose_handler_->GetRobotsPoses();
 
-                double distance = GetLineDistanceToObstacle(line);
+        for (int i = 0; i < number_of_robots_ - 1; ++i) {
+            for (int j = i + 1; j < number_of_robots_; ++j) {
                 
-                
-                double points_distance = conn_handler_->CalculateDistanceBetweenPoints(pi.position,pj.position);
-                
-                
-                double los_score = conn_handler_->CalculateLoSScore(distance);
-                double dist_score = conn_handler_->CalculateDistanceScore(points_distance);
+                connected_explorers_interfaces::msg::LineClearance msg;
+                msg.robot1_id = i;
+                msg.robot2_id = j;
 
-                double final_score = los_score*dist_score;
+                msg.weight = CalculateScore(robot_poses[i], robot_poses[j]);
+                ComputeStepGradient(robot_poses[i], robot_poses[j],msg.weight,MAP_RESOLUTION, msg.dx1, msg.dy1, msg.dz1);
+                ComputeStepGradient(robot_poses[j], robot_poses[i],msg.weight,MAP_RESOLUTION, msg.dx2, msg.dy2, msg.dz2);
 
-
-
-                connected_explorers_interfaces::msg::LineClearance single_clearance;
-                single_clearance.robot1_id = i;
-                single_clearance.robot2_id = j;
-                single_clearance.weight = final_score;
-                single_clearance.distance = distance;
-                batch_msg.clearances.push_back(single_clearance);
+                batch_msg.clearances.push_back(msg);
             }
         }
         line_clearance_publisher_->publish(batch_msg);
-
     }
 
 
@@ -280,22 +297,20 @@ private:
     }
 
     std::vector<std::array<int, 3>> GetLineBetweenPoints(
-        double x1, double y1, double z1, 
-        double x2, double y2, double z2
+        std::array<int, 3> coord1, 
+        std::array<int, 3> coord2
     ) {
         std::vector<std::array<int, 3>> points;
-        std::array<int, 3> p1 = TransformCoordInVoxel(x1, y1, z1, MAP_RESOLUTION);
-        std::array<int, 3> p2 = TransformCoordInVoxel(x2, y2, z2, MAP_RESOLUTION);
 
-        int dx = p2[0] - p1[0], dy = p2[1] - p1[1], dz = p2[2] - p1[2];
+        int dx = coord2[0] - coord1[0], dy = coord2[1] - coord1[1], dz = coord2[2] - coord1[2];
         int steps = std::max({std::abs(dx), std::abs(dy), std::abs(dz)});
 
         for (int i = 0; i <= steps; i++) {
             float t = (steps == 0) ? 0 : (float)i / steps;
             points.push_back({
-                (int)std::round(p1[0] + t * dx),
-                (int)std::round(p1[1] + t * dy),
-                (int)std::round(p1[2] + t * dz)
+                (int)std::round(coord1[0] + t * dx),
+                (int)std::round(coord1[1] + t * dy),
+                (int)std::round(coord1[2] + t * dz)
             });
         }
         return points;

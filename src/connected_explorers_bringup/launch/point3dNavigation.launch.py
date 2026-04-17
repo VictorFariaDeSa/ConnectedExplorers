@@ -29,7 +29,7 @@ MAP_FILE = "untitled.binvox.bt"
 *****************************************************************************"""
 robots = [
     {"name":"robot1","x":-2.5,"y":2.5,"z":5.0,"function":"task"},
-    {"name":"robot2","x":-2.5,"y":-2.5,"z":5.0,"function":"task"},
+    {"name":"robot2","x":-2.5,"y":-2.5,"z":5.0,"function":"conn"},
     {"name":"robot3","x":2.5,"y":2.5,"z":5.0,"function":"conn"},
     {"name":"robot4","x":2.5,"y":-2.5,"z":5.0,"function":"conn"},
 ]
@@ -81,7 +81,7 @@ def generate_launch_description():
             '--x', '0', 
             '--y', '0', 
             '--z', '0', 
-            '--roll', '-1.57', 
+            '--roll', '0', 
             '--pitch', '0', 
             '--yaw', '0', 
             '--frame-id', 'map', 
@@ -153,6 +153,20 @@ def generate_launch_description():
         ]
     )
     launch_nodes.append(supervisor_node)
+
+
+    for i,robot in enumerate(robots):
+        r_controller_node = Node(
+            package="line_viewer",
+            executable="SingleRobotControllerNode",
+            name=f"RobotControllerNode_{robot['name']}",
+            parameters=[
+                {"robots_list":get_all_robot_names(robots)},
+                {"robot_number":i+1},
+                {"robot_role":robot["function"]}
+            ]
+        )
+        launch_nodes.append(r_controller_node)
 
 
     return LaunchDescription(launch_nodes)
