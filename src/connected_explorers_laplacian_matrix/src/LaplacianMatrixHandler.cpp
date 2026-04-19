@@ -60,44 +60,50 @@ void LaplacianMatrixHandler::UpdateGradientData(
         grad_matrix.row(conn_index) = newRow;
     }
 
-// URGENT CHANGE THIS ESTIMATION METHOD !!!!!!
-double LaplacianMatrixHandler::EstimateFiedlerFutureValue(int robot_index, int direction) {
-    Eigen::MatrixXd temp_laplacian;
+void LaplacianMatrixHandler::UpdateGradientVector() {
+    // 1. Get the Fiedler Value and Vector ONCE
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> solver;
+    Eigen::VectorXd v2;
+    
     {
         std::lock_guard<std::mutex> lock(matrix_mutex_);
-        temp_laplacian = laplacian_matrix_;
-    }
-    Eigen::VectorXd weight_deltas = connections_gradient_vector_[robot_index].col(direction);
-
-    for (int neighbor_idx = 0; neighbor_idx < number_of_robots_; ++neighbor_idx) {
-        if (neighbor_idx == robot_index) continue;
-
-        double dw = weight_deltas(neighbor_idx);
-        temp_laplacian(robot_index, neighbor_idx) -= dw;
-        temp_laplacian(neighbor_idx, robot_index) -= dw;
-
-        temp_laplacian(robot_index, robot_index) += dw;
-        temp_laplacian(neighbor_idx, neighbor_idx) += dw;
+        solver.compute(laplacian_matrix_);
+        if (solver.info() != Eigen::Success) return;
+        v2 = solver.eigenvectors().col(1); // The Fiedler Vector
     }
 
-    return GetFiedler(temp_laplacian);
+    // 2. Calculate the gradient analytically for each robot i and dimension d
+    // The formula: grad = sum_{neighbor j} (v2[i] - v2[j])^2 * (partial weight / partial pos)
+    // But since you already have UpdateGradientData (the derivative of the edge weight),
+    // we use the chain rule on the Laplacian quadratic form.
+    
+    std::lock_guard<std::mutex> lock(derivatives_mutex_);
+    for (int i = 0; i < number_of_robots_; i++) {
+        for (int d = 0; d < n_dims_; d++) {
+            double partial_lambda = 0.0;
+            
+            for (int j = 0; j < number_of_robots_; j++) {
+                if (i == j) continue;
+                
+                // This is the derivative of the weight w_ij with respect to robot i's position
+                double dw_ij = connections_gradient_vector_[i](j, d);
+                
+                // Using the property: v^T * (dL/dp) * v = sum (v_i - v_j)^2 * (dw_ij/dp)
+                partial_lambda += std::pow(v2(i) - v2(j), 2) * dw_ij;
+            }
+            
+            fiedler_gradient_[i * n_dims_ + d] = partial_lambda;
+        }
+    }
 }
+
+
 
 void LaplacianMatrixHandler::UpdateFiedlerVectorValue(int index, double new_value){
     std::lock_guard<std::mutex> lock(derivatives_mutex_);
     fiedler_gradient_[index] = new_value;
 }
 
-void LaplacianMatrixHandler::UpdateGradientVector(){
-    double curr_fiedler = GetFiedlerValue();
-    for (int i=0;i<number_of_robots_;i++){
-        for (int d=0;d<n_dims_;d++){
-            double new_fiedler = EstimateFiedlerFutureValue(i,d);
-            double delta = new_fiedler - curr_fiedler;
-            UpdateFiedlerVectorValue(i*n_dims_+d,delta);
-        }
-    }
-}
 
 
 

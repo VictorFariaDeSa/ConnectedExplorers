@@ -43,7 +43,6 @@ public:
     );
     void UpdateGradientVector();
 
-    double EstimateFiedlerFutureValue(int robot_index, int direction);
 
 
     void UpdateConnWeight(float new_weight, int i_1, int i_2);

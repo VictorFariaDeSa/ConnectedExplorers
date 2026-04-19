@@ -83,7 +83,7 @@ private:
 
 // mutex ---
 private:
-    
+    std::mutex data_mutex_;
 
 
 /*******************************************************************************
@@ -177,8 +177,9 @@ private:
         );
     }
 
-    void conn_weights_subscriber_callback(const connected_explorers_interfaces::msg::LineClearanceArray msg){
-        for (connected_explorers_interfaces::msg::LineClearance conn:msg.clearances){
+    void conn_weights_subscriber_callback(const connected_explorers_interfaces::msg::LineClearanceArray::SharedPtr msg){
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        for (connected_explorers_interfaces::msg::LineClearance conn:msg->clearances){
             laplacian_matrix_handler_->UpdateConnWeight(conn.weight,conn.robot1_id,conn.robot2_id);
             Eigen::RowVectorXd d1(3);
             d1 << conn.dx1, conn.dy1, conn.dz1;   
@@ -203,37 +204,45 @@ private:
 
 
     void PublishFiedlerGradient(){
-        laplacian_matrix_handler_->UpdateGradientVector();
-        std::vector<double> gradient = laplacian_matrix_handler_->GetGradient();
-        Eigen::VectorXd eigen_vec = Eigen::Map<Eigen::VectorXd>(gradient.data(), gradient.size());
+        std::vector<double> gradient;
+        int vec_size = 0;
+
+        {
+            std::lock_guard<std::mutex> lock(data_mutex_);
+            laplacian_matrix_handler_->UpdateGradientVector();
+            gradient = laplacian_matrix_handler_->GetGradient();
+            vec_size = gradient.size();
+        }
+
+        if (vec_size == 0) return;
+
         auto msg = std_msgs::msg::Float64MultiArray();
 
-        // 1. Setup Rows (N_robots * 2)
+        // Setup Layout
         std_msgs::msg::MultiArrayDimension dim_rows;
         dim_rows.label = "rows";
-        dim_rows.size = eigen_vec.size();
-        dim_rows.stride = eigen_vec.size() * 1; // rows * cols
+        dim_rows.size = vec_size;
+        dim_rows.stride = vec_size;
         msg.layout.dim.push_back(dim_rows);
 
-        // 2. Setup Cols (Always 1 for a vector to keep it 2D)
         std_msgs::msg::MultiArrayDimension dim_cols;
         dim_cols.label = "cols";
         dim_cols.size = 1;
         dim_cols.stride = 1;
         msg.layout.dim.push_back(dim_cols);
 
-        // 3. Assign data
-        msg.data.assign(eigen_vec.data(), eigen_vec.data() + eigen_vec.size());
+        // Assign data safely
+        msg.data = gradient; 
 
         fiedler_gradient_publisher_->publish(msg);
     }
-
 
     void OnLaplacianTimerTick() {
         PublishLaplacianData();
     }
 
     void PublishLaplacianData() {
+        std::lock_guard<std::mutex> lock(data_mutex_);
         laplacian_matrix_publisher_->publish(laplacian_matrix_handler_->GetLaplacianMsg());
 
         std_msgs::msg::Float64 fiedler_msg;

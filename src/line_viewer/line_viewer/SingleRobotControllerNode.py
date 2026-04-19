@@ -159,18 +159,8 @@ class SingleRobotControllerNode(Node):
     def on_gradient_cb(self,msg):
         self.gradient_vector = float64multArray_to_numpy_matrix(msg)
 
+    #HOLONOMIC
     def on_cmd_vel_cb(self, msg: Twist):        
-        # linear_velocity = msg.linear.x
-        # angular_velocity = msg.angular.z
-
-        # vx, vy = self.Get_robot_instance().Linear_velocity_to_xy(linear_velocity, angular_velocity, 0.15)
-        
-
-        # self.nav2_vel_vector[0, 0] = float(vx)
-        # self.nav2_vel_vector[1, 0] = float(vy)
-
-        # if self.phase == SyncState.PHASE_WAITING:
-
         self.nav2_vel_vector[0, 0] = msg.linear.x
         self.nav2_vel_vector[1, 0] = msg.linear.y
         if DIMENSIONS == 3:

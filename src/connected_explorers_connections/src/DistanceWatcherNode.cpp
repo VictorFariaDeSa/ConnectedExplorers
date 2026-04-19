@@ -121,7 +121,7 @@ public:
         );
 
         line_clearance_publisher_timer_ = this->create_wall_timer(
-            std::chrono::seconds(1), 
+            std::chrono::milliseconds(100), 
             std::bind(&DistanceWatcherNode::PublishLineClearanceMsg, this)
         );
     }
