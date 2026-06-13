@@ -37,11 +37,18 @@ plausible communication between the robots
 * Defines
 *******************************************************************************/
 
-#define QOS_STD_PROFILE 10
-
+// standart values ---
 #define FIEDLER_GRADIENT_TOPIC_NAME "lambda2_gradient"
+#define ROBOTS_POSE_TOPIC_NAME "/position"
+#define MAP_TOPIC_NAME "/map"
+#define CONN_WEIGHT_TOPIC_NAME "line_clearance"
+#define LAPLACIAN_MATRIX_TOPIC_NAME "laplacian_matrix"
+#define FIEDLER_VALUE_TOPIC_NAME "fiedler_value"
+
 #define LAPLACIAN_MATRIX_PUBLISHER_PERIOD_MS 100
 #define FIEDLER_GRADIENT_PUBLISHER_PERIOD_MS 100
+
+#define QOS_STD_PROFILE 10
 
 /*******************************************************************************
 * Class definition and parameters
@@ -54,6 +61,9 @@ class GlobalSupervisorNode : public rclcpp::Node
 private:
     int number_of_robots_;
     std::string robot_name_prefix_;
+    std::string laplacian_matrix_topic_name_;
+    int laplacian_matrix_publish_period_ms_;
+    int fiedler_gradient_publish_period_ms_;
 
 // publishers ---
 private:
@@ -75,7 +85,6 @@ private:
 private:    
     std::unique_ptr<connected_explorers_utils::MultiRobotsPoseHandler> pose_handler_;
     std::unique_ptr<connected_explorers_utils::MapHandler> map_handler_;
-    std::unique_ptr<connected_explorers_utils::ConnWeightHandler> conn_handler_;
     std::unique_ptr<connected_explorers_utils::LaplacianMatrixHandler> laplacian_matrix_handler_;
 
 // data ---
@@ -105,11 +114,17 @@ public:
         this->declare_parameter<std::string>(node_param_name, "robot_");
         robot_name_prefix_ = this->get_parameter(node_param_name).as_string();
         
+        // node_param_name = "robot_name_prefix";
+        // this->declare_parameter<int>(node_param_name, FIEDLER_GRADIENT_TOPIC_NAME);
+        // laplacian_matrix_topic_name_ = this->get_parameter(node_param_name).as_string();
 
+        // node_param_name = "robot_name_prefix";
+        // this->declare_parameter<int>(node_param_name, FIEDLER_GRADIENT_TOPIC_NAME);
+        // laplacian_matrix_publish_period_ms = this->get_parameter(node_param_name).as_string();
 
-
-
-
+        // node_param_name = "robot_name_prefix";
+        // this->declare_parameter<int>(node_param_name, FIEDLER_GRADIENT_TOPIC_NAME);
+        // fiedler_gradient_publish_period_ms = this->get_parameter(node_param_name).as_string();
 
         init_timer_ = this->create_wall_timer(
             std::chrono::milliseconds(0), 
@@ -126,16 +141,16 @@ private:
 
 
 
-        laplacian_matrix_publisher_ = create_publisher<std_msgs::msg::Float64MultiArray>("laplacian_matrix", QOS_STD_PROFILE);
-        fiedler_value_publisher_ = create_publisher<std_msgs::msg::Float64>("fiedler_value", QOS_STD_PROFILE);
-        fiedler_gradient_publisher_ = create_publisher<std_msgs::msg::Float64MultiArray>("lambda2_gradient", QOS_STD_PROFILE);
+        laplacian_matrix_publisher_ = create_publisher<std_msgs::msg::Float64MultiArray>(LAPLACIAN_MATRIX_TOPIC_NAME, QOS_STD_PROFILE);
+        fiedler_value_publisher_ = create_publisher<std_msgs::msg::Float64>(FIEDLER_VALUE_TOPIC_NAME, QOS_STD_PROFILE);
+        fiedler_gradient_publisher_ = create_publisher<std_msgs::msg::Float64MultiArray>(FIEDLER_GRADIENT_TOPIC_NAME, QOS_STD_PROFILE);
 
 
         pose_handler_ = std::make_unique<connected_explorers_utils::MultiRobotsPoseHandler>(
             this->shared_from_this(),
             number_of_robots_,
             robot_name_prefix_,
-            "/position",
+            ROBOTS_POSE_TOPIC_NAME,
             QOS_STD_PROFILE
         );
 
@@ -144,18 +159,12 @@ private:
 
         map_handler_ = std::make_unique<connected_explorers_utils::MapHandler>(
             this->shared_from_this(),
-            "/map",
+            MAP_TOPIC_NAME,
             QOS_STD_PROFILE
         );
 
         map_handler_->InitMapSubscriber();
 
-        conn_handler_ = std::make_unique<connected_explorers_utils::ConnWeightHandler>(
-            1.0f,
-            6.0f,
-            -6.0f,
-            0.5f
-        );
         laplacian_matrix_handler_ = std::make_unique<connected_explorers_utils::LaplacianMatrixHandler>(
             number_of_robots_,
             3
@@ -171,7 +180,7 @@ private:
     void init_conn_weights_subcriber(){
         conn_weights_subscriber_ = 
         this->create_subscription<connected_explorers_interfaces::msg::LineClearanceArray>(
-            "/line_clearance",
+            CONN_WEIGHT_TOPIC_NAME,
             QOS_STD_PROFILE,
             std::bind(&GlobalSupervisorNode::conn_weights_subscriber_callback,this,std::placeholders::_1)
         );
@@ -218,7 +227,6 @@ private:
 
         auto msg = std_msgs::msg::Float64MultiArray();
 
-        // Setup Layout
         std_msgs::msg::MultiArrayDimension dim_rows;
         dim_rows.label = "rows";
         dim_rows.size = vec_size;
@@ -231,7 +239,6 @@ private:
         dim_cols.stride = 1;
         msg.layout.dim.push_back(dim_cols);
 
-        // Assign data safely
         msg.data = gradient; 
 
         fiedler_gradient_publisher_->publish(msg);
@@ -249,86 +256,6 @@ private:
         fiedler_msg.data = laplacian_matrix_handler_->GetFiedlerValue();
         fiedler_value_publisher_->publish(fiedler_msg);
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//     double GenerateNumericLaplacianDerivative(const std::string& axis, int index, double dt) {
-//         Eigen::MatrixXd new_adj = laplacian_matrix_handler_->GetAdjacencyMatrix();
-//         auto poses = pose_handler_->GetRobotsPoses(); // geometry_msgs::msg::Pose
-
-//         // 2. Perturb the target robot's position
-//         geometry_msgs::msg::Point p1 = poses[index].position;
-//         if (axis == "x") p1.x += dt;
-//         else if (axis == "y") p1.y += dt;
-
-//         // 3. Update only the edges connected to the perturbed robot
-//         for (int i = 0; i < number_of_robots_; ++i) {
-//             if (i == index) continue;
-
-//             geometry_msgs::msg::Point p2 = poses[i].position;
-            
-//             // Use your connection handler from the previous step
-//             auto line = map_handler_->GetLineBetweenPoints(
-//                 p1.x, p1.y, 
-//                 p2.x, p2.y
-//             );
-
-//             auto line_res = map_handler_->GetLineMinDistToObstacle(line);
-//             double score = conn_handler_->CalculateFinalScore(p1, p2, line_res.min_dist);
-            
-//             new_adj(index, i) = score;
-//             new_adj(i, index) = score;
-//         }
-
-//         // 4. Generate Laplacian: L = D - A
-//         Eigen::VectorXd degrees = new_adj.rowwise().sum();
-//         Eigen::MatrixXd new_laplacian = degrees.asDiagonal();
-//         new_laplacian -= new_adj;
-
-//         // 5. Compute Eigenvalues
-//         // SelfAdjointEigenSolver is faster and more stable for symmetric matrices (Laplacians)
-//         Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(new_laplacian);
-//         if (es.info() != Eigen::Success) return 0.0;
-
-//         double new_lambda_2 = es.eigenvalues()(1); // Second smallest eigenvalue
-//         double old_lambda_2 = laplacian_matrix_handler_->GetFiedlerValue();
-
-//         return (new_lambda_2 - old_lambda_2) / dt;
-//     }
-
-//     Eigen::VectorXd GetGradientVectorNumericWay(double dt) {
-//     Eigen::VectorXd gradient_vector = Eigen::VectorXd::Zero(number_of_robots_ * 2);
-//     int counter = 0;
-
-//     for (int r_index = 0; r_index < number_of_robots_; ++r_index) {
-//         gradient_vector(counter++) = GenerateNumericLaplacianDerivative("x", r_index, dt);
-//         gradient_vector(counter++) = GenerateNumericLaplacianDerivative("y", r_index, dt);
-//     }
-//     return gradient_vector;
-// }
-
-
-
 
 };
 

@@ -61,7 +61,6 @@ void LaplacianMatrixHandler::UpdateGradientData(
     }
 
 void LaplacianMatrixHandler::UpdateGradientVector() {
-    // 1. Get the Fiedler Value and Vector ONCE
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> solver;
     Eigen::VectorXd v2;
     
@@ -71,11 +70,6 @@ void LaplacianMatrixHandler::UpdateGradientVector() {
         if (solver.info() != Eigen::Success) return;
         v2 = solver.eigenvectors().col(1); // The Fiedler Vector
     }
-
-    // 2. Calculate the gradient analytically for each robot i and dimension d
-    // The formula: grad = sum_{neighbor j} (v2[i] - v2[j])^2 * (partial weight / partial pos)
-    // But since you already have UpdateGradientData (the derivative of the edge weight),
-    // we use the chain rule on the Laplacian quadratic form.
     
     std::lock_guard<std::mutex> lock(derivatives_mutex_);
     for (int i = 0; i < number_of_robots_; i++) {

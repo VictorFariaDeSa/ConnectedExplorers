@@ -38,6 +38,7 @@
                     iyy="${(2.0*m/5.0)*(r*r)}" iyz="0.0" 
                     izz="${(2.0*m/5.0)*(r*r)}"/>
         </inertial>
+        feafaeui
     </xacro:macro>
 
 </robot>

@@ -21,17 +21,55 @@ BRINGUP_PACKAGE = 'connected_explorers_bringup'
 
 # files ---
 RVIZ_CONFIG_FILE = "point3d_config.rviz"
+
+
+# scenario 01 ---
+MAP_FILE = "flat.binvox.bt"
+# # scenario 02 ---
+MAP_FILE = "wall.binvox.bt"
+# # # # scenario 04 ---
+MAP_FILE = "tunnel.binvox.bt"
+# # # # scenario 04 ---
+# # # MAP_FILE = "tunnel.binvox.bt"
+# # # # scenario 04 ---
 MAP_FILE = "untitled.binvox.bt"
 
 
 """*****************************************************************************
 * Data
 *****************************************************************************"""
+# scenario 01 ---
 robots = [
-    {"name":"robot1","x":-2.5,"y":2.5,"z":5.0,"function":"task"},
-    {"name":"robot2","x":-2.5,"y":-2.5,"z":5.0,"function":"conn"},
-    {"name":"robot3","x":2.5,"y":2.5,"z":5.0,"function":"conn"},
-    {"name":"robot4","x":2.5,"y":-2.5,"z":5.0,"function":"conn"},
+    {"name": "robot1", "x": -3.0, "y": 0.0, "z": 5.0, "function": "task"},
+    {"name": "robot2", "x": 3.0, "y": 0.0, "z": 5.2, "function": "base"}
+]
+
+# scenario 02 ---
+robots = [
+    {"name": "robot1", "x": 3.0, "y": -2.0, "z": 2.0, "function": "task"},
+    {"name": "robot2", "x": 3.0, "y": 0.0, "z": 2.0, "function": "conn"},
+    {"name": "robot3", "x": 3.0, "y": 2.0, "z": 2.0, "function": "base"}
+]
+
+
+
+
+# # scenario 04 ---
+robots = [
+    {"name": "robot1", "x": 0.0, "y": 0.0,  "z": 5.0, "function": "task"},
+    {"name": "robot2", "x": -3.0, "y": 0.0,  "z": 2.0, "function": "conn"},
+    {"name": "robot3", "x": 1.5, "y": 2.6, "z": 2.0, "function": "conn"},
+    {"name": "robot4", "x": 1.5, "y": -2.6,"z": 2.0, "function": "conn"},
+    {"name": "robot5", "x": 0.0, "y": 0.0,  "z": 2.0, "function": "base"}
+]
+
+
+robots = [
+    {"name": "robot1", "x": -2.5, "y": 2.5, "z": 5.0, "function": "task"},
+    {"name": "robot2", "x": -2.5, "y": -2.5, "z": 5.0, "function": "conn"},
+    {"name": "robot3", "x": 2.5, "y": 2.5, "z": 5.0, "function": "conn"},
+    {"name": "robot4", "x": 2.5, "y": -2.5, "z": 5.0, "function": "conn"},
+    {"name": "robot5", "x": 0.0, "y": 0.0, "z": 2.0, "function": "base"},
 ]
 
 # TODO DELETE
@@ -68,7 +106,12 @@ def generate_launch_description():
         parameters=[{
             "octomap_path": map_file,
             "frame_id": MAP_FRAME_ID,
-            "use_sim_time": USE_SIM_TIME
+            "use_sim_time": USE_SIM_TIME,
+            "height_map": False,
+            "color.r": 0.8,
+            "color.g": 0.8,
+            "color.b": 0.8,
+            "color.a": 1.0,
         }]
     ))
 
@@ -156,17 +199,29 @@ def generate_launch_description():
 
 
     for i,robot in enumerate(robots):
-        r_controller_node = Node(
-            package="line_viewer",
-            executable="SingleRobotControllerNode",
-            name=f"RobotControllerNode_{robot['name']}",
-            parameters=[
-                {"robots_list":get_all_robot_names(robots)},
-                {"robot_number":i+1},
-                {"robot_role":robot["function"]}
-            ]
-        )
-        launch_nodes.append(r_controller_node)
+        if robot["function"] != "base":
+            r_controller_node = Node(
+                package="line_viewer",
+                executable="SingleRobotControllerNode",
+                name=f"RobotControllerNode_{robot['name']}",
+                parameters=[
+                    {"robots_list":get_all_robot_names(robots)},
+                    {"robot_number":i+1},
+                    {"robot_role":robot["function"]}
+                ]
+            )
+            launch_nodes.append(r_controller_node)
+
+    data_node = Node(
+        package="line_viewer",
+        executable="DataRecorderNode",
+        name="DataRecorderNode",
+        parameters=[
+            {"robots_list":get_all_robot_names(robots)}
+        ]
+    )
+    launch_nodes.append(data_node)
+
 
 
     return LaunchDescription(launch_nodes)

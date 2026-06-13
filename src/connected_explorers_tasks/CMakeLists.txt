@@ -9,7 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 
 install(
-  DIRECTORY connected_explorers_tasks
+  DIRECTORY connected_explorers_tasks connected_explorers_commands
   DESTINATION share/${PROJECT_NAME}/
 )
 

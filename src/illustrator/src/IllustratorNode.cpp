@@ -27,10 +27,12 @@
 
 #define POSE_TOPIC_NAME "/position"
 #define ROLE_TOPIC_NAME "/role"
+#define LAPLACIAN_MATRIX_TOPIC_NAME "/laplacian_matrix"
+
 
 // line configs ---
 #define LINE_MARKER_TOPIC_NAME "marker_lines"
-#define LINE_DEFAULT_SCALE 0.05
+#define LINE_DEFAULT_SCALE 0.2
 #define LINE_DEFAULT_ALPHA 1.0
 
 // sphere configs ---
@@ -209,7 +211,7 @@ private:
     void init_laplacian_matrix_subscriber(){
         laplacian_matrix_subscriber_ = 
         this->create_subscription<std_msgs::msg::Float64MultiArray>(
-            "laplacian_matrix",
+            LAPLACIAN_MATRIX_TOPIC_NAME,
             QOS_STD_PROFILE,
             std::bind(&IllustratorNode::laplacian_matrix_subscriber_callback,this,std::placeholders::_1)
         );
@@ -234,7 +236,7 @@ private:
 private:
     void resize_vectors(){
         connected_explorers_interfaces::msg::RobotTask default_role;
-        default_role.current_task = connected_explorers_interfaces::msg::RobotTask::IDLE;
+        default_role.current_task = connected_explorers_interfaces::msg::RobotTask::BASE;
         latest_robots_roles_.resize(number_of_robots_, default_role);
     }
 

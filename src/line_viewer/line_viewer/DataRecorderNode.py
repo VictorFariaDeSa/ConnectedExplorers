@@ -68,6 +68,7 @@ class RobotsMathNode(Node):
                 for robot_name in self.robots_list:
                     header.append(f'{robot_name}_x')
                     header.append(f'{robot_name}_y')
+                    header.append(f'{robot_name}_z')
                 writer.writerow(header)
 
             current_time = time.time() 
@@ -79,7 +80,9 @@ class RobotsMathNode(Node):
                 if pose:
                     row.append(pose.position.x)
                     row.append(pose.position.y)
+                    row.append(pose.position.z)
                 else:
+                    row.append('NaN')
                     row.append('NaN')
                     row.append('NaN')
             

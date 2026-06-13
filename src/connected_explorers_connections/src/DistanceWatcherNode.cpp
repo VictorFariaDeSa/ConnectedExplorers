@@ -40,12 +40,22 @@
 * Defines
 *******************************************************************************/
 
-#define QOS_STD_PROFILE 10
-#define POSE_TOPIC_NAME "/position"
+#define LOS_ALPHA -6.0
+#define LOS_BETA 0.5
+#define DISTANCE_ALPHA 1.0
+#define DISTANCE_BETA 6.0
 
+
+#define POSE_TOPIC_NAME "/position"
 #define LINE_CLEARANCE_TOPIC_NAME "/line_clearance"
+#define POINT_CLOUD_TOPIC_NAME "/octomap_point_cloud_centers"
+
+#define LINE_CLEARANCE_PUBLISH_TIME_MS 100
 
 #define MAP_RESOLUTION 0.1
+
+#define QOS_STD_PROFILE 10
+
 
 /*******************************************************************************
 * Class definition and parameters
@@ -73,10 +83,10 @@ private:
     rclcpp::TimerBase::SharedPtr line_clearance_publisher_timer_;
 
 // helpers ---
-private:    
+private:
     std::unique_ptr<connected_explorers_utils::MultiRobotsPoseHandler> pose_handler_;
     std::unique_ptr<connected_explorers_utils::ConnWeightHandler> conn_handler_;
-    
+
 
 // data ---
 private:
@@ -84,10 +94,10 @@ private:
     pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr kdtree_;
     bool tree_ready_ = false;
 
-        
+
 // mutex ---
 private:
-    
+
 
 
 /*******************************************************************************
@@ -108,7 +118,7 @@ public:
         node_param_name = "robot_name_prefix";
         this->declare_parameter<std::string>(node_param_name, "robot_");
         robot_name_prefix_ = this->get_parameter(node_param_name).as_string();
-        
+
 
 
 
@@ -116,12 +126,12 @@ public:
 
 
         init_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(0), 
+            std::chrono::milliseconds(0),
             std::bind(&DistanceWatcherNode::init, this)
         );
 
         line_clearance_publisher_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(100), 
+            std::chrono::milliseconds(LINE_CLEARANCE_PUBLISH_TIME_MS),
             std::bind(&DistanceWatcherNode::PublishLineClearanceMsg, this)
         );
     }
@@ -142,27 +152,25 @@ private:
         );
 
         pose_handler_->InitPoseSubscribers();
-        
-        
-        
+
+
+
         conn_handler_ = std::make_unique<connected_explorers_utils::ConnWeightHandler>(
-            1.0f, 6.0f, -6.0f, 0.5f
+            DISTANCE_ALPHA, DISTANCE_BETA, LOS_ALPHA, LOS_BETA
         );
 
         auto qos = rclcpp::QoS(rclcpp::KeepLast(1)).transient_local();
         point_cloud_subscriber_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-            "/octomap_point_cloud_centers", 
-            qos, 
+            POINT_CLOUD_TOPIC_NAME,
+            qos,
             std::bind(&DistanceWatcherNode::pc_callback, this, std::placeholders::_1)
         );
-        
+
         kdtree_ = std::make_shared<pcl::KdTreeFLANN<pcl::PointXYZ>>();
 
 
 
         line_clearance_publisher_ = this->create_publisher<connected_explorers_interfaces::msg::LineClearanceArray>(LINE_CLEARANCE_TOPIC_NAME, QOS_STD_PROFILE);
-
-
     }
 
 
@@ -181,8 +189,8 @@ private:
     }
 
     void ComputeStepGradient(
-        geometry_msgs::msg::Pose p_move, 
-        const geometry_msgs::msg::Pose& p_fixed, 
+        geometry_msgs::msg::Pose p_move,
+        const geometry_msgs::msg::Pose& p_fixed,
         double base_weight,
         double eps,
         double& dx, double& dy, double& dz
@@ -205,7 +213,7 @@ private:
 
         for (int i = 0; i < number_of_robots_ - 1; ++i) {
             for (int j = i + 1; j < number_of_robots_; ++j) {
-                
+
                 connected_explorers_interfaces::msg::LineClearance msg;
                 msg.robot1_id = i;
                 msg.robot2_id = j;
@@ -228,9 +236,9 @@ private:
             dist = distance_cache_[grid_key];
         } else {
             if (kdtree_ == nullptr || !tree_ready_) {
-                RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, 
+                RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
                                      "KDTree not ready yet! Returning safe default distance.");
-                return 999.0; 
+                return 999.0;
             }
             pcl::PointXYZ searchPoint;
             searchPoint.x = grid_key[0] * MAP_RESOLUTION;
@@ -297,7 +305,7 @@ private:
     }
 
     std::vector<std::array<int, 3>> GetLineBetweenPoints(
-        std::array<int, 3> coord1, 
+        std::array<int, 3> coord1,
         std::array<int, 3> coord2
     ) {
         std::vector<std::array<int, 3>> points;

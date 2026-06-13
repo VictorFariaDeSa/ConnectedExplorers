@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 
+
+// TODO REMOVE
 #define ALPHA -6.0
 #define BETA 0.5
 #define DIST_LIM 0.2
@@ -23,14 +25,17 @@ ColorClassifier::~ColorClassifier()
 std_msgs::msg::ColorRGBA ColorClassifier::GetColorByTask(uint8_t task_id){
     std_msgs::msg::ColorRGBA color;
     color.a = 1.0;
-
+    // std::vector<float> rgb;
     switch (task_id) {
-        case RobotTask::TASK:
-            color.g = 1.0; break;
-        case RobotTask::CONN:
-            color.b = 1.0; break;
-        default:
+        case RobotTask::BASE:
+            // rgb = {1.0,1.0,0.0}
             color.r = 1.0; color.g = 1.0; color.b = 0.0; break;
+        case RobotTask::TASK:
+            color.r = 0.0; color.g = 1.0; color.b = 0.0; break;
+        case RobotTask::CONN:
+            color.r = 0.0; color.g = 0.0; color.b = 1.0; break;
+        default:
+            color.r = 1.0; color.g = 0.0; color.b = 0.0; break;
     }
     return color;
 }
