@@ -18,7 +18,7 @@ class RobotsMathNode(Node):
     def __init__(self):
         super().__init__('gazebo_line_publisher')
         robot_list_descriptor = ParameterDescriptor(type=ParameterType.PARAMETER_STRING_ARRAY)
-        
+
         self.declare_parameter("robots_list", [''], robot_list_descriptor)
         self.robots_list = self.get_parameter("robots_list").value
         self.robots_list = [] if self.robots_list == [''] else self.robots_list
@@ -59,7 +59,7 @@ class RobotsMathNode(Node):
         )
 
         for i, robot_name in enumerate(self.robots_list):
-            topic_name = f"{robot_name}/position"             
+            topic_name = f"{robot_name}/position"
             self.robots_instances[robot_name] = RobotClass(robot_name)
             callback_function = partial(self.listener_callback, robot_index=i)
             self.subscriptions_dict[robot_name] = self.create_subscription(
@@ -73,7 +73,7 @@ class RobotsMathNode(Node):
 
         self.laplacian_matrix_publisher = self.create_publisher(
             Float64MultiArray,
-            self.laplacian_topic_name, 
+            self.laplacian_topic_name,
             qos
         )
         self.laplacian_timer = self.create_timer(0.1, self.publish_laplacian_matrix)
@@ -81,14 +81,14 @@ class RobotsMathNode(Node):
 
         self.lambda_gradient_publisher = self.create_publisher(
             Float64MultiArray,
-            self.lambda_gradient_topic_name, 
+            self.lambda_gradient_topic_name,
             qos
         )
         self.gradient_timer = self.create_timer(0.1, self.publish_lambda_gradient)
 
         self.fiedler_publisher = self.create_publisher(
             Float64,
-            "/fiedler_value", 
+            "/fiedler_value",
             qos
         )
         self.laplacian_timer = self.create_timer(0.1, self.publish_fiedler)
@@ -98,7 +98,7 @@ class RobotsMathNode(Node):
         if self.math_handler:
             fiedler,v = self.math_handler.get_second_eingenvalue_and_eingenvector()
             msg = Float64()
-            msg.data = float(fiedler)         
+            msg.data = float(fiedler)
             self.fiedler_publisher.publish(msg)
 
     def publish_laplacian_matrix(self):
@@ -118,10 +118,10 @@ class RobotsMathNode(Node):
             self.lambda_gradient_publisher.publish(msg)
 
 
-    
+
 
     def listener_callback(self, msg, robot_index):
-        robot_name = self.robots_list[robot_index] 
+        robot_name = self.robots_list[robot_index]
         self.robots_instances[robot_name].Set_pose(msg)
         robot_instance_list = [self.robots_instances[robot] for robot in self.robots_list]
         self.math_handler.refresh_laplacian_matrix(robot_instance_list)
@@ -132,13 +132,13 @@ class RobotsMathNode(Node):
             map_info=msg.info
         )
         self.map_handler.compute_map_distance()
-        self.map_handler.generate_distances_colormap("/home/victor/projects/final_proj_MR/images/map.png")
-        self.map_handler.generate_gradient_colormap("/home/victor/projects/final_proj_MR/images/map_x.png","x")
-        self.map_handler.generate_gradient_colormap("/home/victor/projects/final_proj_MR/images/map_y.png","y")
+        self.map_handler.generate_distances_colormap("/home/victor/projects/ConnectedExplorers/images/map.png")
+        self.map_handler.generate_gradient_colormap("/home/victor/projects/ConnectedExplorers/images/map_x.png","x")
+        self.map_handler.generate_gradient_colormap("/home/victor/projects/ConnectedExplorers/images/map_y.png","y")
 
         self.math_handler = MathHandler(self,self.distance_score_scale,self.distance_score_offset,self.sight_score_scale,self.sight_score_offset)
-        self.math_handler.generate_sight_score_chart("/home/victor/projects/final_proj_MR/images/sight_score.png")
-        self.math_handler.generate_distance_score_chart("/home/victor/projects/final_proj_MR/images/distance_score.png")
+        self.math_handler.generate_sight_score_chart("/home/victor/projects/ConnectedExplorers/images/sight_score.png")
+        self.math_handler.generate_distance_score_chart("/home/victor/projects/ConnectedExplorers/images/distance_score.png")
 
 
 def main(args=None):

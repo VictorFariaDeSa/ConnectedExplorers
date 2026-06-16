@@ -17,7 +17,7 @@ class RobotsMathNode(Node):
     def __init__(self):
         super().__init__('data_recorder_node')
         robot_list_descriptor = ParameterDescriptor(type=ParameterType.PARAMETER_STRING_ARRAY)
-        
+
         self.declare_parameter("robots_list", [''], robot_list_descriptor)
         self.robots_list = self.get_parameter("robots_list").value
         self.robots_list = [] if self.robots_list == [''] else self.robots_list
@@ -25,23 +25,23 @@ class RobotsMathNode(Node):
         self.robots_pose_list = {}
         self.fidler_value = None
 
-        for robot_name in self.robots_list:        
+        for robot_name in self.robots_list:
             callback_function = partial(self.pose_callback, robot_name = robot_name)
-            topic_name = f"{robot_name}/position"  
+            topic_name = f"{robot_name}/position"
             self.create_subscription(
                 Pose,
                 topic_name,
                 callback_function,
                 QoSProfile(depth=10),
             )
-        
+
         self.create_subscription(
                 Float64,
                 '/fiedler_value',
                 self.on_fiedler_cb,
                 QoSProfile(depth=10)
             )
-        
+
 
         self.position_timer = self.create_timer(TIME, self.write_poses)
         self.fiedler_timer = self.create_timer(TIME, self.write_fiedler)
@@ -52,7 +52,7 @@ class RobotsMathNode(Node):
         if not self.robots_list:
             return
 
-        dir_path = "/home/victor/projects/final_proj_MR/data"
+        dir_path = "/home/victor/projects/ConnectedExplorers/data"
         file_name = "poses_log.csv"
         full_path = os.path.join(dir_path, file_name)
 
@@ -70,24 +70,24 @@ class RobotsMathNode(Node):
                     header.append(f'{robot_name}_y')
                 writer.writerow(header)
 
-            current_time = time.time() 
+            current_time = time.time()
             row = [current_time]
-            
+
             for robot_name in self.robots_list:
                 pose = self.robots_pose_list.get(robot_name)
-                
+
                 if pose:
                     row.append(pose.position.x)
                     row.append(pose.position.y)
                 else:
                     row.append('NaN')
                     row.append('NaN')
-            
+
             writer.writerow(row)
 
-    
+
     def write_fiedler(self):
-        dir_path = "/home/victor/projects/final_proj_MR/data"
+        dir_path = "/home/victor/projects/ConnectedExplorers/data"
         file_name = "fiedler_log.csv"
         full_path = os.path.join(dir_path, file_name)
 
@@ -100,14 +100,14 @@ class RobotsMathNode(Node):
 
             if not file_exists:
                 writer.writerow(['timestamp', 'fiedler_value'])
-            current_time = time.time() 
+            current_time = time.time()
 
             if self.fidler_value:
                 value = self.fidler_value
             else:
                 value = "NaN"
             writer.writerow([current_time, value])
-    
+
 
 
 
@@ -120,7 +120,7 @@ class RobotsMathNode(Node):
 
     def on_fiedler_cb(self, msg):
         self.fidler_value = msg.data
-            
+
 
 
 def main(args=None):

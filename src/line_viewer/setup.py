@@ -29,7 +29,8 @@ setup(
             "SightMarkerNode = line_viewer.SightMarkerNode:main",
             "RobotsControllerNode = line_viewer.RobotsControllerNode:main",
             "DataRecorderNode = line_viewer.DataRecorderNode:main",
-
+            "sparse_scan_transmitter = line_viewer.SparseScanTransmitter:main",
+            "supervisor_mapper   = line_viewer.SupervisorMapper:main",
         ],
     },
 )
