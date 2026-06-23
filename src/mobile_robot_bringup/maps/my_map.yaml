@@ -1,7 +1,0 @@
-image: /home/victor/projects/final_proj_MR/src/mobile_robot_bringup/maps/my_map.pgm
-mode: trinary
-resolution: 0.050
-origin: [-9.975, -6.953, 0]
-negate: 0
-occupied_thresh: 0.65
-free_thresh: 0.196

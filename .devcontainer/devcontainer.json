@@ -1,0 +1,16 @@
+{
+    "name": "Final Proj MR Dev",
+    
+    "workspaceFolder": "/ros2_ws",
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-azuretools.vscode-docker",
+                "esbenp.prettier-vscode"
+            ]
+        }
+    }
+}

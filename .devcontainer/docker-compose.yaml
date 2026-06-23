@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  ros_dev:
+    build: .
+    image: final_proj_mr:latest
+    container_name: ros2_dev_container
+    
+    network_mode: host
+    ipc: host
+    pid: host
+    privileged: true
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - TERM=xterm-256color
+    
+    volumes:
+      - ..:/ros2_ws
+
+    command: tail -f /dev/null

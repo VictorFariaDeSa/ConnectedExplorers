@@ -1,0 +1,2 @@
+# LineClearanceArray.msg
+LineClearance[] clearances
