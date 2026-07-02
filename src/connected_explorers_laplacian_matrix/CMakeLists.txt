@@ -11,7 +11,8 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
-
+find_package(connected_explorers_interfaces REQUIRED)
+find_package(connected_explorers_utils REQUIRED)
 
 # --- Laplacian Matrix Utils ---
 add_library(laplacian_matrix_utils src/LaplacianMatrixHandler.cpp)
@@ -29,17 +30,19 @@ ament_target_dependencies(laplacian_matrix_utils
 )
 
 # --- The Node (The Executable) ---
-add_executable(laplacian_estimator_node 
+add_executable(laplacian_matrix_estimator_node 
   src/LaplacianMatrixEstimatorNode.cpp
 )
 
 # Link your internal library and external dependencies
-target_link_libraries(laplacian_estimator_node laplacian_matrix_utils)
+target_link_libraries(laplacian_matrix_estimator_node laplacian_matrix_utils)
 
-ament_target_dependencies(laplacian_estimator_node 
+ament_target_dependencies(laplacian_matrix_estimator_node 
   rclcpp 
   std_msgs 
   Eigen3
+  connected_explorers_interfaces
+  connected_explorers_utils
 )
 
 ament_export_targets(export_laplacian_matrix_utils HAS_LIBRARY_TARGET)
@@ -56,7 +59,7 @@ install(TARGETS laplacian_matrix_utils
   INCLUDES DESTINATION include
 )
 
-install(TARGETS laplacian_estimator_node
+install(TARGETS laplacian_matrix_estimator_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -10,7 +10,6 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from std_msgs.msg import Float64MultiArray
 
-from connected_explorers_interfaces.msg import SyncState
 
 from .MathHandler import MatrixHandler
 from .RobotClass import RobotClass
@@ -43,10 +42,10 @@ class SingleRobotControllerNode(Node):
 
         self.n_robots = len(self.robots_list)
 
-        self.declare_parameter("laplacian_topic_name", "laplacian_matrix")
+        self.declare_parameter("laplacian_topic_name", "laplacian_guess") 
         self.laplacian_topic_name = self.get_parameter("laplacian_topic_name").value
 
-        self.declare_parameter("lambda_gradient_topic_name", "lambda2_gradient")
+        self.declare_parameter("lambda_gradient_topic_name", "gradient_guess")
         self.lambda_gradient_topic_name = self.get_parameter(
             "lambda_gradient_topic_name"
         ).value
@@ -95,23 +94,27 @@ class SingleRobotControllerNode(Node):
         """
 
         for i, robot_name in enumerate(self.robots_list):
-            topic_name = f"{robot_name}/position"
+            # Formatted to subscribe to: robotX/robotY/position
+            topic_name = f"{self.robot_name}/{robot_name}/position"
             self.robots_instances[robot_name] = RobotClass(robot_name)
             callback_function = partial(self.on_pose_cb, robot_index=i)
             self.subscriptions_dict_position[robot_name] = self.create_subscription(
-                Pose, topic_name, callback_function, qos
+                Pose, topic_name, callback_function, qos # Changed to Point
             )
             self.get_logger().info(f"Subscribed to: {topic_name}")
 
+        laplacian_full_topic = f"{self.robot_name}/{self.laplacian_topic_name}"
         self.laplacian_matrix_subscriber = self.create_subscription(
-            Float64MultiArray, self.laplacian_topic_name, self.on_laplacian_cb, qos
+            Float64MultiArray, laplacian_full_topic, self.on_laplacian_cb, qos
         )
-        self.get_logger().info(f"Subscribed to: {self.laplacian_topic_name}")
+        self.get_logger().info(f"Subscribed to: {laplacian_full_topic}")
 
+        # gradient_full_topic = f"{self.robot_name}/{self.lambda_gradient_topic_name}"
+        gradient_full_topic = "/lambda2_gradient"
         self.lambda2_gradient_subscriber = self.create_subscription(
-            Float64MultiArray, self.lambda_gradient_topic_name, self.on_gradient_cb, qos
+            Float64MultiArray, gradient_full_topic, self.on_gradient_cb, qos
         )
-        self.get_logger().info(f"Subscribed to: {self.lambda_gradient_topic_name}")
+        self.get_logger().info(f"Subscribed to: {gradient_full_topic}")
 
         topic_name = f"{self.robot_name}/{self.ideal_cmd_vel_topic_name}"
         cb_function = (

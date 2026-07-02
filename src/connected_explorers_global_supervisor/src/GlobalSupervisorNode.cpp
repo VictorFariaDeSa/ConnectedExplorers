@@ -3,14 +3,10 @@
 
 - GlobalSupervisorNode
 
-This Node is respomsable for keeping the enviroment infomartion and simulate 
+This Node is responsable for keeping the environment information and simulate 
 plausible communication between the robots
 
-
-
 *******************************************************************************/
-
-
 
 /*******************************************************************************
 * Includes
@@ -24,29 +20,28 @@ plausible communication between the robots
 #include "std_msgs/msg/float64.hpp"
 
 // custom messages
-#include "connected_explorers_interfaces/msg/sync_state.hpp"
 #include "connected_explorers_interfaces/msg/line_clearance_array.hpp"
 
 // custom files
 #include "connected_explorers_utils/MultiRobotsPoseHandler.hpp"
-#include "connected_explorers_utils/ConnWeightHandler.hpp"
 #include "connected_explorers_laplacian_matrix/LaplacianMatrixHandler.hpp"
-#include "connected_explorers_utils/MapHandler.hpp"
 
 /*******************************************************************************
 * Defines
 *******************************************************************************/
 
-// standart values ---
-#define FIEDLER_GRADIENT_TOPIC_NAME "lambda2_gradient"
+// standard values ---
 #define ROBOTS_POSE_TOPIC_NAME "/position"
 #define MAP_TOPIC_NAME "/map"
 #define CONN_WEIGHT_TOPIC_NAME "line_clearance"
 #define LAPLACIAN_MATRIX_TOPIC_NAME "laplacian_matrix"
 #define FIEDLER_VALUE_TOPIC_NAME "fiedler_value"
+#define FIEDLER_GRADIENT_TOPIC_NAME "lambda2_gradient"
+#define KNOW_CONNECTIONS_TOPIC_NAME "know_connections"
 
 #define LAPLACIAN_MATRIX_PUBLISHER_PERIOD_MS 100
 #define FIEDLER_GRADIENT_PUBLISHER_PERIOD_MS 100
+#define INBOX_PUBLISHER_PERIOD_MS 100
 
 #define QOS_STD_PROFILE 10
 
@@ -60,6 +55,7 @@ class GlobalSupervisorNode : public rclcpp::Node
 // parameters ---
 private:
     int number_of_robots_;
+    int problem_dimension_;
     std::string robot_name_prefix_;
     std::string laplacian_matrix_topic_name_;
     int laplacian_matrix_publish_period_ms_;
@@ -70,21 +66,21 @@ private:
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr laplacian_matrix_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr fiedler_value_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr fiedler_gradient_publisher_;
+    std::vector<rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr> robot_know_connection_weight_publisher_list_;
 
 // subscribers ---
 private:
-    rclcpp::Subscription<connected_explorers_interfaces::msg::LineClearanceArray>::SharedPtr conn_weights_subscriber_;
+    rclcpp::Subscription<connected_explorers_interfaces::msg::LineClearanceArray>::SharedPtr line_clearance_subscriber_;
 
 // timers ---
 private:
     rclcpp::TimerBase::SharedPtr init_timer_;
     rclcpp::TimerBase::SharedPtr laplacian_matrix_publisher_timer_;
     rclcpp::TimerBase::SharedPtr fiedler_gradient_publisher_timer_;
+    std::vector<rclcpp::TimerBase::SharedPtr> inbox_timers_;
 
 // helpers ---
 private:    
-    std::unique_ptr<connected_explorers_utils::MultiRobotsPoseHandler> pose_handler_;
-    std::unique_ptr<connected_explorers_utils::MapHandler> map_handler_;
     std::unique_ptr<connected_explorers_utils::LaplacianMatrixHandler> laplacian_matrix_handler_;
 
 // data ---
@@ -113,18 +109,11 @@ public:
         node_param_name = "robot_name_prefix";
         this->declare_parameter<std::string>(node_param_name, "robot_");
         robot_name_prefix_ = this->get_parameter(node_param_name).as_string();
-        
-        // node_param_name = "robot_name_prefix";
-        // this->declare_parameter<int>(node_param_name, FIEDLER_GRADIENT_TOPIC_NAME);
-        // laplacian_matrix_topic_name_ = this->get_parameter(node_param_name).as_string();
 
-        // node_param_name = "robot_name_prefix";
-        // this->declare_parameter<int>(node_param_name, FIEDLER_GRADIENT_TOPIC_NAME);
-        // laplacian_matrix_publish_period_ms = this->get_parameter(node_param_name).as_string();
+        node_param_name = "problem_dimension";
+        this->declare_parameter<int>(node_param_name, 2);
+        problem_dimension_ = this->get_parameter(node_param_name).as_int();
 
-        // node_param_name = "robot_name_prefix";
-        // this->declare_parameter<int>(node_param_name, FIEDLER_GRADIENT_TOPIC_NAME);
-        // fiedler_gradient_publish_period_ms = this->get_parameter(node_param_name).as_string();
 
         init_timer_ = this->create_wall_timer(
             std::chrono::milliseconds(0), 
@@ -139,54 +128,63 @@ private:
     void init() {
         init_timer_->cancel();
 
-
-
         laplacian_matrix_publisher_ = create_publisher<std_msgs::msg::Float64MultiArray>(LAPLACIAN_MATRIX_TOPIC_NAME, QOS_STD_PROFILE);
         fiedler_value_publisher_ = create_publisher<std_msgs::msg::Float64>(FIEDLER_VALUE_TOPIC_NAME, QOS_STD_PROFILE);
         fiedler_gradient_publisher_ = create_publisher<std_msgs::msg::Float64MultiArray>(FIEDLER_GRADIENT_TOPIC_NAME, QOS_STD_PROFILE);
+        
+        for (int robot_index = 0; robot_index < number_of_robots_; robot_index++){
+            std::string topic_name = robot_name_prefix_ + std::to_string(robot_index+1) + "/" + KNOW_CONNECTIONS_TOPIC_NAME;
+            rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr publisher = 
+            this->create_publisher<std_msgs::msg::Float64MultiArray>(
+                topic_name, 
+                QOS_STD_PROFILE
+            );
+            robot_know_connection_weight_publisher_list_.push_back(publisher);
+        }
 
-
-        pose_handler_ = std::make_unique<connected_explorers_utils::MultiRobotsPoseHandler>(
-            this->shared_from_this(),
-            number_of_robots_,
-            robot_name_prefix_,
-            ROBOTS_POSE_TOPIC_NAME,
-            QOS_STD_PROFILE
+        line_clearance_subscriber_ = create_subscription<connected_explorers_interfaces::msg::LineClearanceArray>(
+            CONN_WEIGHT_TOPIC_NAME,
+            QOS_STD_PROFILE,
+            std::bind(&GlobalSupervisorNode::LineClearanceCallback, this, std::placeholders::_1)
         );
-
-        pose_handler_->InitPoseSubscribers();
-
-
-        map_handler_ = std::make_unique<connected_explorers_utils::MapHandler>(
-            this->shared_from_this(),
-            MAP_TOPIC_NAME,
-            QOS_STD_PROFILE
-        );
-
-        map_handler_->InitMapSubscriber();
 
         laplacian_matrix_handler_ = std::make_unique<connected_explorers_utils::LaplacianMatrixHandler>(
             number_of_robots_,
-            3
+            problem_dimension_
         );
 
         StartLaplacianMatrixPublisher();
         StartFiedlerGradientPublisher();
-        init_conn_weights_subcriber();
+        StartKnowConnPublishers();
         
         RCLCPP_INFO(this->get_logger(), "All systems initialized.");
     }
 
-    void init_conn_weights_subcriber(){
-        conn_weights_subscriber_ = 
-        this->create_subscription<connected_explorers_interfaces::msg::LineClearanceArray>(
-            CONN_WEIGHT_TOPIC_NAME,
-            QOS_STD_PROFILE,
-            std::bind(&GlobalSupervisorNode::conn_weights_subscriber_callback,this,std::placeholders::_1)
-        );
+    void StartLaplacianMatrixPublisher() {
+        laplacian_matrix_publisher_timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(LAPLACIAN_MATRIX_PUBLISHER_PERIOD_MS), 
+            std::bind(&GlobalSupervisorNode::PublishLaplacianData, this));
     }
 
-    void conn_weights_subscriber_callback(const connected_explorers_interfaces::msg::LineClearanceArray::SharedPtr msg){
+    void StartFiedlerGradientPublisher(){
+        fiedler_gradient_publisher_timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(FIEDLER_GRADIENT_PUBLISHER_PERIOD_MS), 
+            std::bind(&GlobalSupervisorNode::PublishFiedlerGradient, this));
+    }
+
+    void StartKnowConnPublishers() {
+        for (int robot_index = 0; robot_index < number_of_robots_; robot_index++){
+            auto timer = this->create_wall_timer(
+                std::chrono::milliseconds(INBOX_PUBLISHER_PERIOD_MS), 
+                [this, robot_index]() {
+                    this->PublishKnowConnData(robot_index);
+                }
+            );
+            inbox_timers_.push_back(timer);
+        }
+    }
+
+    void LineClearanceCallback(const connected_explorers_interfaces::msg::LineClearanceArray::SharedPtr msg) {
         std::lock_guard<std::mutex> lock(data_mutex_);
         for (connected_explorers_interfaces::msg::LineClearance conn:msg->clearances){
             laplacian_matrix_handler_->UpdateConnWeight(conn.weight,conn.robot1_id,conn.robot2_id);
@@ -199,18 +197,14 @@ private:
         }
     }
 
-    void StartLaplacianMatrixPublisher() {
-        laplacian_matrix_publisher_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(LAPLACIAN_MATRIX_PUBLISHER_PERIOD_MS), 
-            std::bind(&GlobalSupervisorNode::OnLaplacianTimerTick, this));
-    }
+    void PublishLaplacianData() {
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        laplacian_matrix_publisher_->publish(laplacian_matrix_handler_->GetLaplacianMsg());
 
-    void StartFiedlerGradientPublisher(){
-        fiedler_gradient_publisher_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(FIEDLER_GRADIENT_PUBLISHER_PERIOD_MS), 
-            std::bind(&GlobalSupervisorNode::PublishFiedlerGradient, this));
+        std_msgs::msg::Float64 fiedler_msg;
+        fiedler_msg.data = laplacian_matrix_handler_->GetFiedlerValue();
+        fiedler_value_publisher_->publish(fiedler_msg);
     }
-
 
     void PublishFiedlerGradient(){
         std::vector<double> gradient;
@@ -244,21 +238,16 @@ private:
         fiedler_gradient_publisher_->publish(msg);
     }
 
-    void OnLaplacianTimerTick() {
-        PublishLaplacianData();
-    }
-
-    void PublishLaplacianData() {
-        std::lock_guard<std::mutex> lock(data_mutex_);
-        laplacian_matrix_publisher_->publish(laplacian_matrix_handler_->GetLaplacianMsg());
-
-        std_msgs::msg::Float64 fiedler_msg;
-        fiedler_msg.data = laplacian_matrix_handler_->GetFiedlerValue();
-        fiedler_value_publisher_->publish(fiedler_msg);
+    void PublishKnowConnData(int index){
+        rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr publisher = robot_know_connection_weight_publisher_list_[index];
+        Eigen::MatrixXd adjancy_matrix = laplacian_matrix_handler_->GetAdjacencyMatrix();
+        std_msgs::msg::Float64MultiArray msg;
+        Eigen::VectorXd target_row = adjancy_matrix.row(index);
+        msg.data.assign(target_row.data(), target_row.data() + target_row.size());
+        publisher->publish(msg);
     }
 
 };
-
 
 /*******************************************************************************
 * Main function

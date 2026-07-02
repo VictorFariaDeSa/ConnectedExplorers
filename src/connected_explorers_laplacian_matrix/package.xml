@@ -13,7 +13,9 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>eigen</exec_depend>
   <exec_depend>opencv</exec_depend>
-  
+  <exec_depend>connected_explorers_interfaces</exec_depend>
+  <exec_depend>connected_explorers_utils</exec_depend>
+
   <export>
     <build_type>ament_cmake</build_type>
   </export>

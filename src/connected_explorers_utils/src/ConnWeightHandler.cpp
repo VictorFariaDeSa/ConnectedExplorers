@@ -2,9 +2,17 @@
 
 
 namespace connected_explorers_utils{
-ConnWeightHandler::ConnWeightHandler(float dist_alpha, float dist_beta,float los_alpha, float los_beta):
-dist_alpha_(dist_alpha),dist_beta_(dist_beta),los_alpha_(los_alpha),los_beta_(los_beta){
-}
+ConnWeightHandler::ConnWeightHandler(
+    float dist_alpha, 
+    float dist_beta,
+    float los_alpha, 
+    float los_beta
+):
+dist_alpha_(dist_alpha),
+dist_beta_(dist_beta),
+los_alpha_(los_alpha),
+los_beta_(los_beta)
+{}
 
 ConnWeightHandler::~ConnWeightHandler()
 {

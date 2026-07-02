@@ -132,7 +132,20 @@ def generate_launch_description():
         ]
     ))
 
-    for robot in robots:
+    for i,robot in enumerate(robots):
+        if robot["function"] != "base":
+            r_controller_node = Node(
+                package="line_viewer",
+                executable="SingleRobotControllerNode",
+                name=f"RobotControllerNode_{robot['name']}",
+                parameters=[
+                    {"robots_list":get_all_robot_names(robots)},
+                    {"robot_number":i+1},
+                    {"robot_role":robot["function"]}
+                ]
+            )
+            launch_nodes.append(r_controller_node)
+
         name = robot["name"]
         launch_nodes.append(Node(
             package="line_viewer",
@@ -153,6 +166,39 @@ def generate_launch_description():
                 "frame_id":"world"
             }]
         ))
+
+        launch_nodes.append(Node(
+            package="connected_explorers_messagery",
+            executable="robot_inbox_node",
+            parameters=[
+                {"robot_id":i+1},
+            ]
+        ))
+
+        launch_nodes.append(Node(
+            package="connected_explorers_messagery",
+            executable="robot_outbox_node",
+            parameters=[
+                {"robot_id":i+1},
+            ]
+        ))
+
+        launch_nodes.append(Node(
+            package="connected_explorers_laplacian_matrix",
+            executable="laplacian_matrix_estimator_node",
+            parameters=[
+                {"number_of_robots":len(robots)},
+                {"robot_index":i+1},
+            ]
+        ))
+
+    launch_nodes.append(Node(
+        package="connected_explorers_messagery",
+        executable="router_node",
+        parameters=[
+            {"number_of_robots":len(robots)}
+        ]
+    ))
 
     launch_nodes.append(Node(
         package="connected_explorers_connections",
@@ -193,24 +239,13 @@ def generate_launch_description():
         parameters=[
             {"number_of_robots":len(robots)},
             {"robot_name_prefix":"robot"},
+            {"problem_dimension": 3}
         ]
     )
     launch_nodes.append(supervisor_node)
 
 
-    for i,robot in enumerate(robots):
-        if robot["function"] != "base":
-            r_controller_node = Node(
-                package="line_viewer",
-                executable="SingleRobotControllerNode",
-                name=f"RobotControllerNode_{robot['name']}",
-                parameters=[
-                    {"robots_list":get_all_robot_names(robots)},
-                    {"robot_number":i+1},
-                    {"robot_role":robot["function"]}
-                ]
-            )
-            launch_nodes.append(r_controller_node)
+
 
     data_node = Node(
         package="line_viewer",

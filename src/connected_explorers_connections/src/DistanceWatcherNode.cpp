@@ -34,8 +34,7 @@
 // custom files
 #include "connected_explorers_utils/MultiRobotsPoseHandler.hpp"
 #include "connected_explorers_utils/ConnWeightHandler.hpp"
-#include "connected_explorers_connections/BitPackHasher.hpp"
-
+#include "connected_explorers_utils/BitPackHasher.hpp"
 /*******************************************************************************
 * Defines
 *******************************************************************************/
