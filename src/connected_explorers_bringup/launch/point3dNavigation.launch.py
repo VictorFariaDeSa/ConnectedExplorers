@@ -51,9 +51,6 @@ robots = [
     {"name": "robot3", "x": 3.0, "y": 2.0, "z": 2.0, "function": "base"}
 ]
 
-
-
-
 # # scenario 04 ---
 robots = [
     {"name": "robot1", "x": 0.0, "y": 0.0,  "z": 5.0, "function": "task"},
@@ -141,7 +138,10 @@ def generate_launch_description():
                 parameters=[
                     {"robots_list":get_all_robot_names(robots)},
                     {"robot_number":i+1},
+                    {"is_3d_mode":True},
+                    {"holonomic":True},
                     {"robot_role":robot["function"]}
+
                 ]
             )
             launch_nodes.append(r_controller_node)
@@ -189,6 +189,7 @@ def generate_launch_description():
             parameters=[
                 {"number_of_robots":len(robots)},
                 {"robot_index":i+1},
+                {"is_3d_mode":True}
             ]
         ))
 
@@ -205,7 +206,12 @@ def generate_launch_description():
         executable="distance_watcher_node",
         parameters=[
             {"number_of_robots":len(robots)},
-            {"robot_name_prefix":"robot"}
+            {"robot_name_prefix":"robot"},
+            {"is_3d_mode":True},
+            {"los_alpha":-6.0},
+            {"los_beta":0.5},
+            {"distance_alpha":1.0},
+            {"distance_beta":6.0},
         ]
     ))
 

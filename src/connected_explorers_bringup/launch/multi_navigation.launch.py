@@ -21,6 +21,9 @@ from launch_ros.actions import Node, PushRosNamespace
 * User defined params & Robots list
 ********************************************************************************
 """
+DIMENSIONS = 2
+
+
 SIGHT_SCORE_OFFSET = 0.5
 SIGHT_SCORE_SCALE = -6.0
 

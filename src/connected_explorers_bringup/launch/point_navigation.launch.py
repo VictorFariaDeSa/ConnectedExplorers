@@ -40,7 +40,7 @@ def get_robots_functions(robots):
     robots_dict = {robot["name"]:robot["function"] for robot in robots}
     return json.dumps(robots_dict)
 
-map_file = os.path.join(get_package_share_directory(BRINGUP_PACKAGE), 'maps', MAP_NAME)
+map_file = os.path.join(get_package_share_directory(BRINGUP_PACKAGE), 'maps/2d', MAP_NAME)
 rviz_config_file = os.path.join(get_package_share_directory(BRINGUP_PACKAGE), 'config/rviz', RVIZ_CONFIG_FILE)
 
 def get_robot_nav_file(robot_name):
@@ -48,9 +48,6 @@ def get_robot_nav_file(robot_name):
         BRINGUP_PACKAGE), "config", f"point_config_{robot_name}.yaml"
     )
 
-nav_file_robot = get_robot_nav_file("robot1")
-
-# Nós gerenciados pelo Lifecycle (incluindo os do robot1 com namespace)
 lifecycle_managed_nodes = [
     "map_server", 
 ]
@@ -76,10 +73,23 @@ def generate_launch_description():
     ))
 
     # 3. Robôs (Simulador Customizado)
-    for robot in robots:
+    for i,robot in enumerate(robots):
+        r_controller_node = Node(
+            package="line_viewer",
+            executable="SingleRobotControllerNode",
+            name=f"RobotControllerNode_{robot['name']}",
+            parameters=[
+                {"robots_list":get_all_robot_names(robots)},
+                {"robot_number":i+1},
+                {"is_3d_mode":False},
+                {"holonomic":True},
+                {"robot_role":robot["function"]}
+            ]
+        )
+        launch_nodes.append(r_controller_node)
+
+
         name = robot["name"]
-        x_pos = robot["x"]
-        y_pos = robot["y"]
         nav_file_robot = get_robot_nav_file(name)
         launch_nodes.append(Node(
             package="line_viewer",
@@ -98,8 +108,36 @@ def generate_launch_description():
                 "use_sim_time": USE_SIM_TIME  # Crucial para as TFs aparecerem
             }]
         ))
-
         
+
+        launch_nodes.append(Node(
+            package="connected_explorers_messagery",
+            executable="robot_inbox_node",
+            parameters=[
+                {"robot_id":i+1},
+            ]
+        ))
+
+        launch_nodes.append(Node(
+            package="connected_explorers_messagery",
+            executable="robot_outbox_node",
+            parameters=[
+                {"robot_id":i+1},
+            ]
+        ))
+
+        launch_nodes.append(Node(
+            package="connected_explorers_laplacian_matrix",
+            executable="laplacian_matrix_estimator_node",
+            parameters=[
+                {"number_of_robots":len(robots)},
+                {"robot_index":i+1},
+                {"is_3d_mode":False}
+            ]
+        ))
+
+
+                
         # 4. Nav2 Nodes para o Robot1
         planner_node = Node(
             namespace=name,
@@ -153,6 +191,30 @@ def generate_launch_description():
         )
         launch_nodes.append(delayed_nav_nodes)
 
+
+    launch_nodes.append(Node(
+            package="connected_explorers_messagery",
+            executable="router_node",
+            parameters=[
+                {"number_of_robots":len(robots)}
+            ]
+        ))
+    
+    launch_nodes.append(Node(
+        package="connected_explorers_connections",
+        executable="distance_watcher_node",
+        parameters=[
+            {"number_of_robots":len(robots)},
+            {"robot_name_prefix":"robot"},
+            {"is_3d_mode":False},
+            {"los_alpha":-6.0},
+            {"los_beta":0.5},
+            {"distance_alpha":1.0},
+            {"distance_beta":6.0},
+        ]
+    ))
+
+
     # 5. Lifecycle Manager
     lifecycle_manager_node = Node(
         package="nav2_lifecycle_manager",
@@ -184,19 +246,7 @@ def generate_launch_description():
     )
     launch_nodes.append(marker_node)
 
-    # marker_node = Node(
-    #     package="line_viewer",
-    #     executable="SightMarkerNode",
-    #     name="SightMarkerNode",
-    #     parameters=[
-    #         {"robots_list":get_all_robot_names(robots)},
-    #         {"reference_frame":"map"},
-    #         {"publisher_node_name":"visualization_marker"},
-    #         {'robots_function_map': get_robots_functions(robots)}
 
-    #     ]
-    # )
-    # launch_nodes.append(marker_node)
 
     marker_node = Node(
         package="illustrator",
@@ -216,23 +266,11 @@ def generate_launch_description():
         parameters=[
             {"number_of_robots":len(get_all_robot_names(robots))},
             {"robot_name_prefix":"robot"},
+            {"problem_dimension": 2}
         ]
     )
     launch_nodes.append(supervisor_node)
 
-
-    for i,robot in enumerate(robots):
-        r_controller_node = Node(
-            package="line_viewer",
-            executable="SingleRobotControllerNode",
-            name=f"RobotControllerNode_{robot['name']}",
-            parameters=[
-                {"robots_list":get_all_robot_names(robots)},
-                {"robot_number":i+1},
-                {"robot_role":robot["function"]}
-            ]
-        )
-        launch_nodes.append(r_controller_node)
 
 
     return LaunchDescription(launch_nodes)

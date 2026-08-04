@@ -14,18 +14,16 @@
 
 #include "rclcpp/rclcpp.hpp"
 
-
-
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <opencv2/opencv.hpp>
 
-
 // messages
 #include "geometry_msgs/msg/pose.hpp"
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
 
 // custom messages
 #include "connected_explorers_interfaces/msg/line_clearance_array.hpp"
@@ -36,7 +34,7 @@
 #include "connected_explorers_utils/ConnWeightHandler.hpp"
 #include "connected_explorers_utils/BitPackHasher.hpp"
 /*******************************************************************************
-* Defines
+* Default values
 *******************************************************************************/
 
 #define LOS_ALPHA -6.0
@@ -44,7 +42,7 @@
 #define DISTANCE_ALPHA 1.0
 #define DISTANCE_BETA 6.0
 
-
+#define MAP_TOPIC_NAME "/map"
 #define POSE_TOPIC_NAME "/position"
 #define LINE_CLEARANCE_TOPIC_NAME "/line_clearance"
 #define POINT_CLOUD_TOPIC_NAME "/octomap_point_cloud_centers"
@@ -54,7 +52,6 @@
 #define MAP_RESOLUTION 0.1
 
 #define QOS_STD_PROFILE 10
-
 
 /*******************************************************************************
 * Class definition and parameters
@@ -67,6 +64,12 @@ class DistanceWatcherNode : public rclcpp::Node
 private:
     int number_of_robots_;
     std::string robot_name_prefix_;
+    bool is_3d_mode_;
+
+    double los_alpha_;
+    double los_beta_;
+    double distance_alpha_;
+    double distance_beta_;
 
 // publishers ---
 private:
@@ -74,7 +77,8 @@ private:
 
 // subscribers ---
 private:
-    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_subscriber_;
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_subscriber_; // 3D map subscriber
+    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr map_subscriber_; // 2D map subscriber
 
 // timers ---
 private:
@@ -118,9 +122,35 @@ public:
         this->declare_parameter<std::string>(node_param_name, "robot_");
         robot_name_prefix_ = this->get_parameter(node_param_name).as_string();
 
+        node_param_name = "is_3d_mode";
+        this->declare_parameter(node_param_name, rclcpp::PARAMETER_BOOL);
+        rclcpp::Parameter is_3d_mode_param = this->get_parameter(node_param_name);
+
+        if (is_3d_mode_param.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET) {
+            RCLCPP_FATAL(
+                this->get_logger(), 
+                "Parameter '%s' is required but was not provided! Crashing node.", node_param_name.c_str()
+            );
+            throw std::runtime_error("Missing required parameter: " + node_param_name);
+        }
+        is_3d_mode_ = is_3d_mode_param.as_bool();
 
 
+        node_param_name = "los_alpha";
+        this->declare_parameter<double>(node_param_name, LOS_ALPHA);
+        los_alpha_ = this->get_parameter(node_param_name).as_double();
 
+        node_param_name = "los_beta";
+        this->declare_parameter<double>(node_param_name, LOS_BETA);
+        los_beta_ = this->get_parameter(node_param_name).as_double();
+
+        node_param_name = "distance_alpha";
+        this->declare_parameter<double>(node_param_name, DISTANCE_ALPHA);
+        distance_alpha_ = this->get_parameter(node_param_name).as_double();
+
+        node_param_name = "distance_beta";
+        this->declare_parameter<double>(node_param_name, DISTANCE_BETA);
+        distance_beta_ = this->get_parameter(node_param_name).as_double();
 
 
 
@@ -142,6 +172,7 @@ private:
     void init() {
         init_timer_->cancel();
 
+        // This class just abstracts the process of getting the robots poses
         pose_handler_ = std::make_unique<connected_explorers_utils::MultiRobotsPoseHandler>(
             this->shared_from_this(),
             number_of_robots_,
@@ -149,14 +180,34 @@ private:
             POSE_TOPIC_NAME,
             QOS_STD_PROFILE
         );
-
         pose_handler_->InitPoseSubscribers();
 
-
-
+        // This class just acts as a math handles applying the sigmoid functions to any given 2 points
         conn_handler_ = std::make_unique<connected_explorers_utils::ConnWeightHandler>(
-            DISTANCE_ALPHA, DISTANCE_BETA, LOS_ALPHA, LOS_BETA
+            distance_alpha_, 
+            distance_beta_, 
+            los_alpha_, 
+            los_beta_
         );
+
+
+
+        if (is_3d_mode_) {
+            RCLCPP_INFO(this->get_logger(), "Initializing in 3D Mode...");
+            point_cloud_subscriber_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+                POINT_CLOUD_TOPIC_NAME,
+                QOS_STD_PROFILE,
+                std::bind(&DistanceWatcherNode::pc_callback, this, std::placeholders::_1)
+            );
+        } else {
+            RCLCPP_INFO(this->get_logger(), "Initializing in 2D Mode...");
+            map_subscriber_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
+                MAP_TOPIC_NAME,
+                QOS_STD_PROFILE,
+                std::bind(&DistanceWatcherNode::map_callback, this, std::placeholders::_1)
+            );
+        }
+
 
         auto qos = rclcpp::QoS(rclcpp::KeepLast(1)).transient_local();
         point_cloud_subscriber_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
@@ -271,13 +322,42 @@ private:
             }
         }
 
+        UpdateKDTree(cloud);
+    }
+
+    void map_callback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg) {
+        RCLCPP_INFO(this->get_logger(), "2D Map received! Building distance tree...");
+
+        auto cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
+
+        double res = msg->info.resolution;
+        double origin_x = msg->info.origin.position.x;
+        double origin_y = msg->info.origin.position.y;
+        int width = msg->info.width;
+        int height = msg->info.height;
+
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                int index = x + y * width;
+                if (msg->data[index] >= 50) { 
+                    double px = origin_x + (x + 0.5) * res;
+                    double py = origin_y + (y + 0.5) * res;
+                    cloud->push_back(pcl::PointXYZ(px, py, 0.0));
+                }
+            }
+        }
+
+        UpdateKDTree(cloud);
+    }
+
+    void UpdateKDTree(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
         if (!cloud->empty()) {
             kdtree_->setInputCloud(cloud);
             distance_cache_.clear();
             tree_ready_ = true;
-            RCLCPP_INFO(this->get_logger(), "Tree built successfully with %zu blocks!", cloud->size());
+            RCLCPP_INFO(this->get_logger(), "Tree built successfully with %zu blocks/cells!", cloud->size());
         } else {
-            RCLCPP_WARN(this->get_logger(), "Octomap loaded, but it has zero occupied blocks.");
+            RCLCPP_WARN(this->get_logger(), "Map loaded, but it has zero occupied blocks/cells.");
         }
     }
 

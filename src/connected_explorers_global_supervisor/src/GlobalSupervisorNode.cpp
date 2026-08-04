@@ -186,14 +186,23 @@ private:
 
     void LineClearanceCallback(const connected_explorers_interfaces::msg::LineClearanceArray::SharedPtr msg) {
         std::lock_guard<std::mutex> lock(data_mutex_);
-        for (connected_explorers_interfaces::msg::LineClearance conn:msg->clearances){
-            laplacian_matrix_handler_->UpdateConnWeight(conn.weight,conn.robot1_id,conn.robot2_id);
-            Eigen::RowVectorXd d1(3);
-            d1 << conn.dx1, conn.dy1, conn.dz1;   
-            laplacian_matrix_handler_->UpdateGradientData(conn.robot1_id,conn.robot2_id,d1);
-            Eigen::RowVectorXd d2(3);
-            d2 << conn.dx2, conn.dy2, conn.dz2;   
-            laplacian_matrix_handler_->UpdateGradientData(conn.robot2_id,conn.robot1_id,d2);
+        for (const auto& conn : msg->clearances){
+            laplacian_matrix_handler_->UpdateConnWeight(conn.weight, conn.robot1_id, conn.robot2_id);
+            
+            Eigen::RowVectorXd d1(problem_dimension_);
+            Eigen::RowVectorXd d2(problem_dimension_);
+            
+            if (problem_dimension_ == 3) {
+                d1 << conn.dx1, conn.dy1, conn.dz1;
+                d2 << conn.dx2, conn.dy2, conn.dz2;
+            } else {
+                d1 << conn.dx1, conn.dy1;
+                d2 << conn.dx2, conn.dy2;
+            }
+            // -----------------------------
+
+            laplacian_matrix_handler_->UpdateGradientData(conn.robot1_id, conn.robot2_id, d1);
+            laplacian_matrix_handler_->UpdateGradientData(conn.robot2_id, conn.robot1_id, d2);
         }
     }
 

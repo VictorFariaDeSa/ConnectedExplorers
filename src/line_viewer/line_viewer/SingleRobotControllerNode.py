@@ -6,6 +6,7 @@ import numpy as np
 import rclpy
 from geometry_msgs.msg import Pose, Twist
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
+from rclpy.parameter import Parameter
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from std_msgs.msg import Float64MultiArray
@@ -18,12 +19,24 @@ from .Ros2Utils import float64multArray_to_numpy_matrix
 EPSILON = 0.4
 GAMMA = 6
 
-DIMENSIONS = 3
-
 
 class SingleRobotControllerNode(Node):
     def __init__(self):
         super().__init__("single_robot_controller_node")
+        
+        # --- Parameter: is_3d_mode ---
+        self.declare_parameter("is_3d_mode")
+        is_3d_mode_param = self.get_parameter("is_3d_mode")
+        
+        # Manually check if the launch file failed to override it
+        if is_3d_mode_param.type_ == Parameter.Type.NOT_SET:
+            self.get_logger().fatal("Parameter 'is_3d_mode' is required but was not provided! Crashing node.")
+            raise RuntimeError("Missing required parameter: is_3d_mode")
+            
+        self.is_3d_mode = is_3d_mode_param.value
+        self.dimensions = 3 if self.is_3d_mode else 2
+
+        # --- Other Parameters ---
         robot_list_descriptor = ParameterDescriptor(
             type=ParameterType.PARAMETER_STRING_ARRAY
         )
@@ -55,6 +68,7 @@ class SingleRobotControllerNode(Node):
             "ideal_cmd_vel_topic_name"
         ).value
 
+        # --- Parameter: holonomic ---
         self.declare_parameter("holonomic", True)
         self.holonomic_controller = self.get_parameter("holonomic").value
 
@@ -65,14 +79,14 @@ class SingleRobotControllerNode(Node):
 
         self.robots_instances: Dict[str, RobotClass] = {}
 
-        self.nav2_vel_vector = np.zeros((DIMENSIONS, 1))
+        self.nav2_vel_vector = np.zeros((self.dimensions, 1))
         self.matrix_handler = MatrixHandler(self.n_robots)
-        self.gradient_vector = np.zeros((self.n_robots * DIMENSIONS, 1))
+        self.gradient_vector = np.zeros((self.n_robots * self.dimensions, 1))
         self.active = True
 
         """
         ************************************************************************
-        * Plublishers
+        * Publishers
         ************************************************************************
         """
         self.vel_publisher = self.create_publisher(
@@ -94,12 +108,11 @@ class SingleRobotControllerNode(Node):
         """
 
         for i, robot_name in enumerate(self.robots_list):
-            # Formatted to subscribe to: robotX/robotY/position
             topic_name = f"{self.robot_name}/{robot_name}/position"
             self.robots_instances[robot_name] = RobotClass(robot_name)
             callback_function = partial(self.on_pose_cb, robot_index=i)
             self.subscriptions_dict_position[robot_name] = self.create_subscription(
-                Pose, topic_name, callback_function, qos # Changed to Point
+                Pose, topic_name, callback_function, qos 
             )
             self.get_logger().info(f"Subscribed to: {topic_name}")
 
@@ -109,8 +122,7 @@ class SingleRobotControllerNode(Node):
         )
         self.get_logger().info(f"Subscribed to: {laplacian_full_topic}")
 
-        # gradient_full_topic = f"{self.robot_name}/{self.lambda_gradient_topic_name}"
-        gradient_full_topic = "/lambda2_gradient"
+        gradient_full_topic = f"{self.robot_name}/{self.lambda_gradient_topic_name}"
         self.lambda2_gradient_subscriber = self.create_subscription(
             Float64MultiArray, gradient_full_topic, self.on_gradient_cb, qos
         )
@@ -148,7 +160,7 @@ class SingleRobotControllerNode(Node):
     def holonommic_on_cmd_vel_cb(self, msg: Twist):
         self.nav2_vel_vector[0, 0] = msg.linear.x
         self.nav2_vel_vector[1, 0] = msg.linear.y
-        if DIMENSIONS == 3:
+        if self.is_3d_mode:
             self.nav2_vel_vector[2, 0] = msg.linear.z
         self.last_cmd_time = self.get_clock().now()
 
@@ -184,7 +196,7 @@ class SingleRobotControllerNode(Node):
                 )
                 self.send_robot_velocity(real_velocities_vector)
             else:
-                self.send_robot_velocity(np.zeros((DIMENSIONS, 1)))
+                self.send_robot_velocity(np.zeros((self.dimensions, 1)))
 
     """
     ****************************************************************************
@@ -194,7 +206,7 @@ class SingleRobotControllerNode(Node):
 
     def Get_robot_specifict_gradient_values(self):
         return self.gradient_vector[
-            (self.robot_number - 1) * DIMENSIONS : (self.robot_number) * DIMENSIONS
+            (self.robot_number - 1) * self.dimensions : (self.robot_number) * self.dimensions
         ]
 
     def Get_direction_vector_based_on_the_gradient(self, desired_mag, grad_vector):
@@ -217,7 +229,7 @@ class SingleRobotControllerNode(Node):
 
     def get_optimized_movement_vector(self, ideal_vector):
         max_vel = 0.5
-        lambda_conn_threshold = 0.5
+        lambda_conn_threshold = 0.9
 
         grad_vector = self.Get_robot_specifict_gradient_values()
         lambda_2, _ = self.matrix_handler.Get_second_eingenvalue_and_eingenvector()
@@ -233,7 +245,7 @@ class SingleRobotControllerNode(Node):
         if projection >= conn_barrier_val and collision_safe:
             return ideal_vector
 
-        u_final = cp.Variable((DIMENSIONS, 1))
+        u_final = cp.Variable((self.dimensions, 1))
         delta = cp.Variable((1, 1), nonneg=True)
 
         cost_movement = cp.sum_squares(u_final - ideal_vector)
@@ -246,14 +258,13 @@ class SingleRobotControllerNode(Node):
 
         if self.robot_role == "task":
             if not self.Check_vector_greater_than_threshold(ideal_vector, 1e-5):
-                return np.zeros((DIMENSIONS, 1))
+                return np.zeros((self.dimensions, 1))
 
-        # --- DYNAMIC 3D COLLISION AVOIDANCE FIX ---
+        # --- DYNAMIC COLLISION AVOIDANCE FIX ---
         p_curr_raw = self.Get_robot_instance().pose.position
-        # Create a vector of the current position based on DIMENSIONS
         p_curr = np.array([p_curr_raw.x, p_curr_raw.y, p_curr_raw.z])[
-            :DIMENSIONS
-        ].reshape(DIMENSIONS, 1)
+            :self.dimensions
+        ].reshape(self.dimensions, 1)
 
         for robot_name in self.robots_list:
             if robot_name == self.robot_name:
@@ -261,23 +272,20 @@ class SingleRobotControllerNode(Node):
 
             p_other_raw = self.robots_instances[robot_name].pose.position
             p_other = np.array([p_other_raw.x, p_other_raw.y, p_other_raw.z])[
-                :DIMENSIONS
-            ].reshape(DIMENSIONS, 1)
+                :self.dimensions
+            ].reshape(self.dimensions, 1)
 
             diff = p_curr - p_other
             dist = np.linalg.norm(diff)
 
             if dist < 1.5:
                 if dist > 1e-4:
-                    # Normal vector (n_vec) will now be (1, 3) if DIMENSIONS is 3
                     n_vec = (diff / dist).T
                 else:
-                    # Fallback for perfect overlap
-                    n_vec = np.zeros((1, DIMENSIONS))
+                    n_vec = np.zeros((1, self.dimensions))
                     n_vec[0, 0] = 1.0
 
                 h = dist - 1.0
-                # Multiplication: (1, DIMENSIONS) @ (DIMENSIONS, 1) -> Scalar
                 constraints.append(n_vec @ u_final >= -1 * h)
         # ------------------------------------------
 
@@ -293,27 +301,41 @@ class SingleRobotControllerNode(Node):
 
     def send_robot_velocity(self, velocities_vector):
         msg = Twist()
-        # v_global = velocities_vector[0,0]
-        # w_global = velocities_vector[1,0]
-        # v,w = self.Get_robot_instance().feedback_linearization_global_velocities_to_vw(v_global,w_global,0.15)
-        # msg.linear.x = v
-        # msg.angular.z = w
-        msg.linear.x = float(velocities_vector[0, 0])
-        msg.linear.y = float(velocities_vector[1, 0])
-        if DIMENSIONS == 3:
-            msg.linear.z = float(velocities_vector[2, 0])
+        
+        if self.holonomic_controller:
+            msg.linear.x = float(velocities_vector[0, 0])
+            msg.linear.y = float(velocities_vector[1, 0])
+            if self.is_3d_mode:
+                msg.linear.z = float(velocities_vector[2, 0])
+        else:
+            # Feedback linearization for differential drive (non-holonomic)
+            v_x = float(velocities_vector[0, 0])
+            v_y = float(velocities_vector[1, 0])
+            
+            v, w = self.Get_robot_instance().feedback_linearization_global_velocities_to_vw(v_x, v_y, 0.15)
+            
+            msg.linear.x = float(v)
+            msg.angular.z = float(w)
+            
+            if self.is_3d_mode:
+                self.get_logger().warn(
+                    "Non-holonomic mode is selected alongside 3D mode. "
+                    "Ignoring Z velocity for the differential drive command.", 
+                    once=True
+                )
+                
         self.vel_publisher.publish(msg)
 
     def get_collision_safe(self, safe_dist):
-        # 3D distance check for overall safety flag
         poses = [r.pose.position for r in self.robots_instances.values()]
         for i in range(len(poses)):
             for j in range(i + 1, len(poses)):
-                d = np.sqrt(
-                    (poses[i].x - poses[j].x) ** 2
-                    + (poses[i].y - poses[j].y) ** 2
-                    + (poses[i].z - poses[j].z) ** 2
-                )
+                dx = poses[i].x - poses[j].x
+                dy = poses[i].y - poses[j].y
+                dz = poses[i].z - poses[j].z if self.is_3d_mode else 0.0
+                
+                d = np.sqrt(dx**2 + dy**2 + dz**2)
+                
                 if d < safe_dist:
                     return False
         return True
