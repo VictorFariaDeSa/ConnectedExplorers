@@ -91,7 +91,7 @@ private:
 
 // data ---
 private:
-    std::unordered_map<int, std::array<double, 3>> robots_poses_guess_; 
+    std::unordered_map<int, geometry_msgs::msg::Pose> robots_poses_guess_; 
 
 // mutex ---
 private:
@@ -251,11 +251,7 @@ private:
             for (const auto& [id, pose] : robots_poses_guess_) {
                 auto it = guess_position_publishers_.find(id);
                 if (it != guess_position_publishers_.end()) {
-                    geometry_msgs::msg::Pose pos_msg;
-                    pos_msg.position.x = pose[0];
-                    pos_msg.position.y = pose[1];
-                    pos_msg.position.z = (problem_dimensions_ == 3) ? pose[2] : 0.0;
-                    it->second->publish(pos_msg);
+                    it->second->publish(pose);
                 }
             }
         }
@@ -330,7 +326,9 @@ private:
         std::unordered_map<int, std::array<double, 3>> local_poses;
         {
             std::lock_guard<std::mutex> lock(poses_mutex_);
-            local_poses = robots_poses_guess_;
+            for (const auto& [id, pose] : robots_poses_guess_) {
+                local_poses[id] = {pose.position.x, pose.position.y, pose.position.z};
+            }
         }
 
         for (const auto& [id_i, pose_i] : local_poses) {
@@ -367,11 +365,10 @@ private:
 
     void ownPoseCallback(const geometry_msgs::msg::Pose::SharedPtr msg){
         std::lock_guard<std::mutex> lock(poses_mutex_);
-        robots_poses_guess_[robot_index_] = {
-            msg->position.x, 
-            msg->position.y, 
-            (problem_dimensions_ == 3) ? msg->position.z : 0.0
-        };
+        robots_poses_guess_[robot_index_] = *msg;
+        if (problem_dimensions_ != 3) {
+            robots_poses_guess_[robot_index_].position.z = 0.0;
+        }
     }
 
     void ownConnCallback(const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
@@ -405,24 +402,27 @@ private:
         std::lock_guard<std::mutex> lock(poses_mutex_);
 
         if (robots_poses_guess_.find(id) == robots_poses_guess_.end()) {
-            robots_poses_guess_[id] = {
-                msg->pose.position.x, 
-                msg->pose.position.y, 
-                (problem_dimensions_ == 3) ? msg->pose.position.z : 0.0
-            };
+            geometry_msgs::msg::Pose initial_pose = msg->pose;
+            if (problem_dimensions_ != 3) {
+                initial_pose.position.z = 0.0;
+            }
+            robots_poses_guess_[id] = initial_pose;
             return;
         }
 
-        double delta_x = msg->pose.position.x - robots_poses_guess_[id][0];
-        double delta_y = msg->pose.position.y - robots_poses_guess_[id][1];
+        double delta_x = msg->pose.position.x - robots_poses_guess_[id].position.x;
+        double delta_y = msg->pose.position.y - robots_poses_guess_[id].position.y;
         
-        robots_poses_guess_[id][0] += delta_x * POSE_CORRETCTION_STEP * weight;
-        robots_poses_guess_[id][1] += delta_y * POSE_CORRETCTION_STEP * weight;
+        robots_poses_guess_[id].position.x += delta_x * POSE_CORRETCTION_STEP * weight;
+        robots_poses_guess_[id].position.y += delta_y * POSE_CORRETCTION_STEP * weight;
         
         if (problem_dimensions_ == 3) {
-            double delta_z = msg->pose.position.z - robots_poses_guess_[id][2];
-            robots_poses_guess_[id][2] += delta_z * POSE_CORRETCTION_STEP * weight;
+            double delta_z = msg->pose.position.z - robots_poses_guess_[id].position.z;
+            robots_poses_guess_[id].position.z += delta_z * POSE_CORRETCTION_STEP * weight;
         }
+
+        // Pass through orientation from neighbor message
+        robots_poses_guess_[id].orientation = msg->pose.orientation;
     }
 };
 

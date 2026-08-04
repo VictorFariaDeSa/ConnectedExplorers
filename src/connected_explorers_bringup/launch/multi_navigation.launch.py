@@ -155,9 +155,14 @@ def generate_launch_description():
             package="connected_explorers_connections",
             executable="distance_watcher_node",
             parameters=[
-                {"number_of_robots": len(robots)},
-                {"robot_name_prefix": "robot"},
                 {"use_sim_time": True},
+                {"number_of_robots":len(robots)},
+                {"robot_name_prefix":"robot"},
+                {"is_3d_mode":False},
+                {"los_alpha":-6.0},
+                {"los_beta":0.5},
+                {"distance_alpha":1.0},
+                {"distance_beta":6.0},
             ],
         )
     )
@@ -191,6 +196,7 @@ def generate_launch_description():
             parameters=[
                 {"number_of_robots": len(robots)},
                 {"robot_name_prefix": "robot"},
+                {"problem_dimension": 2}
             ],
         )
     )
@@ -211,6 +217,46 @@ def generate_launch_description():
             "behavior_server",
             "bt_navigator"
         ]
+
+        launch_nodes.append(Node(
+            package="connected_explorers_messagery",
+            executable="robot_inbox_node",
+            parameters=[
+                {"robot_id":i+1},
+            ]
+        )),
+
+        launch_nodes.append(Node(
+            package="connected_explorers_messagery",
+            executable="robot_outbox_node",
+            parameters=[
+                {"robot_id":i+1},
+            ]
+        )),
+
+        launch_nodes.append(Node(
+            package="connected_explorers_laplacian_matrix",
+            executable="laplacian_matrix_estimator_node",
+            parameters=[
+                {"number_of_robots":len(robots)},
+                {"robot_index":i+1},
+                {"is_3d_mode":False}
+            ]
+        )),
+
+        # Custom Robot Controller Node
+        launch_nodes.append(Node(
+            package="line_viewer",
+            executable="SingleRobotControllerNode",
+            name=f"RobotControllerNode_{name}",
+            parameters=[
+                {"robots_list": get_all_robot_names(robots)},
+                {"robot_number": i + 1},
+                {"robot_role": robot["function"]},
+                {"holonomic": False},
+                {"is_3d_mode":False}
+            ],
+        )),
 
         robot_group = GroupAction([
             PushRosNamespace(name),
@@ -285,18 +331,7 @@ def generate_launch_description():
                 parameters=[get_robot_nav_file(name)],
             ),
 
-            # Custom Robot Controller Node
-            Node(
-                package="line_viewer",
-                executable="SingleRobotControllerNode",
-                name=f"RobotControllerNode_{name}",
-                parameters=[
-                    {"robots_list": get_all_robot_names(robots)},
-                    {"robot_number": i + 1},
-                    {"robot_role": robot["function"]},
-                    {"holonomic": False}
-                ],
-            ),
+            
 
             # DEDICATED LIFECYCLE MANAGER FOR THIS ROBOT ONLY
             Node(
@@ -309,10 +344,19 @@ def generate_launch_description():
                     {"autostart": True},
                     {"node_names": robot_nav_nodes_list},
                 ],
-            )
+            ),
         ])
+
 
         # Delaying the robot groups slightly just to let Gazebo bridge connect
         launch_nodes.append(TimerAction(period=3.0, actions=[robot_group]))
+
+    launch_nodes.append(Node(
+        package="connected_explorers_messagery",
+        executable="router_node",
+        parameters=[
+            {"number_of_robots":len(robots)}
+        ]
+    ))
 
     return LaunchDescription(launch_nodes)

@@ -31,7 +31,6 @@ plausible communication between the robots
 *******************************************************************************/
 
 // standard values ---
-#define ROBOTS_POSE_TOPIC_NAME "/position"
 #define MAP_TOPIC_NAME "/map"
 #define CONN_WEIGHT_TOPIC_NAME "line_clearance"
 #define LAPLACIAN_MATRIX_TOPIC_NAME "laplacian_matrix"

@@ -66,7 +66,7 @@ class RobotClass():
         
         v = np.clip(v_raw, -max_v, max_v)
         w = np.clip(w_raw, -max_w, max_w)
-        return v_raw,w_raw
+        return v,w  
 
 
     def Get_yaw_sine_and_cos(self):

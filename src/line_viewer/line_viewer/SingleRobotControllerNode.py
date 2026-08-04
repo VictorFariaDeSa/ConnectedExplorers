@@ -16,8 +16,8 @@ from .MathHandler import MatrixHandler
 from .RobotClass import RobotClass
 from .Ros2Utils import float64multArray_to_numpy_matrix
 
-EPSILON = 0.4
-GAMMA = 6
+EPSILON = 0.3
+GAMMA = 3
 
 
 class SingleRobotControllerNode(Node):
@@ -229,21 +229,19 @@ class SingleRobotControllerNode(Node):
 
     def get_optimized_movement_vector(self, ideal_vector):
         max_vel = 0.5
+        REAL_MAX_W = 1.5  
+        L_POINT = 0.2     
+        max_lateral_vel = REAL_MAX_W * L_POINT
         lambda_conn_threshold = 0.9
 
         grad_vector = self.Get_robot_specifict_gradient_values()
         lambda_2, _ = self.matrix_handler.Get_second_eingenvalue_and_eingenvector()
         conn_barrier_val = self.Get_barrier_val(GAMMA, lambda_2, EPSILON)
-        projection = self.Get_lambda_projection(grad_vector, ideal_vector)
-        collision_safe = self.get_collision_safe(1.0)
 
         if self.robot_role == "conn" and lambda_2 < lambda_conn_threshold:
             ideal_vector = self.Get_direction_vector_based_on_the_gradient(
                 0.95, grad_vector
             )
-
-        if projection >= conn_barrier_val and collision_safe:
-            return ideal_vector
 
         u_final = cp.Variable((self.dimensions, 1))
         delta = cp.Variable((1, 1), nonneg=True)
@@ -256,11 +254,14 @@ class SingleRobotControllerNode(Node):
         constraints.append(grad_vector.T @ u_final >= conn_barrier_val - delta)
         constraints.append(cp.abs(u_final) <= max_vel)
 
+        if not self.holonomic_controller and not self.is_3d_mode:
+            s, c = self.Get_robot_instance().Get_yaw_sine_and_cos()
+            constraints.append(cp.abs(-u_final[0]*s + u_final[1]*c) <= max_lateral_vel)
+
         if self.robot_role == "task":
             if not self.Check_vector_greater_than_threshold(ideal_vector, 1e-5):
                 return np.zeros((self.dimensions, 1))
 
-        # --- DYNAMIC COLLISION AVOIDANCE FIX ---
         p_curr_raw = self.Get_robot_instance().pose.position
         p_curr = np.array([p_curr_raw.x, p_curr_raw.y, p_curr_raw.z])[
             :self.dimensions
@@ -287,7 +288,6 @@ class SingleRobotControllerNode(Node):
 
                 h = dist - 1.0
                 constraints.append(n_vec @ u_final >= -1 * h)
-        # ------------------------------------------
 
         problem = cp.Problem(objective, constraints)
         try:
