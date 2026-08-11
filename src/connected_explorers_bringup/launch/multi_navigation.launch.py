@@ -254,7 +254,18 @@ def generate_launch_description():
                 {"robot_number": i + 1},
                 {"robot_role": robot["function"]},
                 {"holonomic": False},
-                {"is_3d_mode":False}
+                {"is_3d_mode": False},
+                {"epsilon": 0.3},
+                {"gamma": 3.0},
+                {"control_period": 0.05},
+                {"max_vel": 0.5},
+                {"real_max_w": 1.5},
+                {"l_point": 0.2},
+                {"lambda_conn_threshold": 0.9},
+                {"conn_desired_mag": 0.95},
+                {"slack_weight": 1e8},
+                {"collision_detection_dist": 1.5},
+                {"collision_safe_dist": 1.0}
             ],
         )),
 

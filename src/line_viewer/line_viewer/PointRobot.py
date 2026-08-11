@@ -8,7 +8,6 @@ from nav_msgs.msg import Odometry
 from rclpy.qos import QoSProfile
 from tf2_ros import TransformBroadcaster
 
-# 1. Classe de Lógica Pura (Seguindo o exemplo)
 class PointRobot:
     def __init__(self, x: float = 0.0, y: float = 0.0, z: float = 0.0, yaw: float = 0.0):
         self.x = x
@@ -29,7 +28,6 @@ class PointRobot:
         return f"Robot(x={self.x:.2f}, y={self.y:.2f}, yaw={math.degrees(self.yaw):.2f}°)"
 
 
-# 2. Nó ROS 2 (Seguindo o exemplo)
 class PointRobotNode(Node):
     def __init__(self):
         super().__init__(node_name='point_robot_sim')
@@ -55,18 +53,17 @@ class PointRobotNode(Node):
 
         # ROS 2 Infrastructure
         qos = QoSProfile(depth=10)
-        topic_prefix = self.get_namespace()
         
         # Subscriber e Publisher (Nomes relativos para funcionar com namespaces)
-        self.cmd_sub = self.create_subscription(Twist, f'{topic_prefix}/cmd_vel', self.cmd_callback, qos)
-        self.odom_pub = self.create_publisher(Odometry, f'{topic_prefix}/odom', qos)
+        self.cmd_sub = self.create_subscription(Twist, f'cmd_vel', self.cmd_callback, qos)
+        self.odom_pub = self.create_publisher(Odometry, f'odom', qos)
         
 
         self.tf_broadcaster = TransformBroadcaster(self)
 
         self.create_timer(self.dt, self.update_physics)
         
-        self.get_logger().info(f"Node {topic_prefix} iniciado em X:{self.x} Y:{self.y}")
+        self.get_logger().info(f"Node {self.get_namespace()} iniciado em X:{self.x} Y:{self.y}")
 
     def cmd_callback(self, msg: Twist):
         self.vx = msg.linear.x

@@ -1,0 +1,65 @@
+
+# =========================================================
+# CONNECTED EXPLORERS - SCENARIO CONFIGURATION
+# =========================================================
+
+[environment]
+# engine: 
+#   - "gazebo" (Full physics simulation with rigid bodies and collisions)
+#   - "point_integrator" (Lightweight kinematic math integration via PointRobotNode)
+#   - "hardware" (Deployment to physical robots)
+engine = "point_integrator"
+
+
+# dimension: "2D" or "3D"
+dimension = "2D"
+map = "empty"
+use_sim_time = false
+
+
+[platform]
+# control_stack: "nav2" (Planners/Controllers) or "teleop"
+navigation = "nav2"
+# localization: 
+#   - "amcl" (Uses LiDAR/LaserScans to find position on the map)
+#   - "ground_truth" (Relies on point_integrator or a simulator plugin for exact position)
+localization = "ground_truth"
+# kinematics: "differential" or "holonomic"
+kinematics = "holonomic"
+
+
+
+[cbf]
+# Control Barrier Function tuning parameters
+los_alpha = -6.0
+los_beta = 0.5
+distance_alpha = 1.0
+distance_beta = 6.0
+
+[external_files]
+gz_bridge_config = "gazebo_bridge.yaml"
+
+
+# =========================================================
+# SWARM DEFINITION
+# =========================================================
+[[robots]]
+name = "robot1"
+x = -6.0
+y = -1.0
+z = 0.1
+function = "task"
+
+[[robots]]
+name = "robot2"
+x = -6.0
+y = 1.0
+z = 0.1
+function = "task"
+
+[[robots]]
+name = "robot3"
+x = -7.0
+y = 0.0
+z = 0.1
+function = "conn"

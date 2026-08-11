@@ -16,9 +16,6 @@ from .MathHandler import MatrixHandler
 from .RobotClass import RobotClass
 from .Ros2Utils import float64multArray_to_numpy_matrix
 
-EPSILON = 0.3
-GAMMA = 3
-
 
 class SingleRobotControllerNode(Node):
     def __init__(self):
@@ -28,7 +25,6 @@ class SingleRobotControllerNode(Node):
         self.declare_parameter("is_3d_mode")
         is_3d_mode_param = self.get_parameter("is_3d_mode")
         
-        # Manually check if the launch file failed to override it
         if is_3d_mode_param.type_ == Parameter.Type.NOT_SET:
             self.get_logger().fatal("Parameter 'is_3d_mode' is required but was not provided! Crashing node.")
             raise RuntimeError("Missing required parameter: is_3d_mode")
@@ -36,7 +32,7 @@ class SingleRobotControllerNode(Node):
         self.is_3d_mode = is_3d_mode_param.value
         self.dimensions = 3 if self.is_3d_mode else 2
 
-        # --- Other Parameters ---
+        # --- Other ROS Parameters ---
         robot_list_descriptor = ParameterDescriptor(
             type=ParameterType.PARAMETER_STRING_ARRAY
         )
@@ -53,8 +49,6 @@ class SingleRobotControllerNode(Node):
         self.declare_parameter("robot_role", "conn")
         self.robot_role = self.get_parameter("robot_role").value
 
-        self.n_robots = len(self.robots_list)
-
         self.declare_parameter("laplacian_topic_name", "laplacian_guess") 
         self.laplacian_topic_name = self.get_parameter("laplacian_topic_name").value
 
@@ -68,12 +62,44 @@ class SingleRobotControllerNode(Node):
             "ideal_cmd_vel_topic_name"
         ).value
 
-        # --- Parameter: holonomic ---
         self.declare_parameter("holonomic", True)
         self.holonomic_controller = self.get_parameter("holonomic").value
 
-        self.last_cmd_time = self.get_clock().now()
+        self.declare_parameter("epsilon", 0.3)
+        self.epsilon = self.get_parameter("epsilon").value
 
+        self.declare_parameter("gamma", 3.0)
+        self.gamma = self.get_parameter("gamma").value
+
+        self.declare_parameter("control_period", 0.05)
+        self.control_period = self.get_parameter("control_period").value
+
+        self.declare_parameter("max_vel", 0.5)
+        self.max_vel = self.get_parameter("max_vel").value
+
+        self.declare_parameter("real_max_w", 1.5)
+        self.real_max_w = self.get_parameter("real_max_w").value
+
+        self.declare_parameter("l_point", 0.2)
+        self.l_point = self.get_parameter("l_point").value
+
+        self.declare_parameter("lambda_conn_threshold", 0.9)
+        self.lambda_conn_threshold = self.get_parameter("lambda_conn_threshold").value
+
+        self.declare_parameter("conn_desired_mag", 0.95)
+        self.conn_desired_mag = self.get_parameter("conn_desired_mag").value
+
+        self.declare_parameter("slack_weight", 1e8)
+        self.slack_weight = self.get_parameter("slack_weight").value
+
+        self.declare_parameter("collision_detection_dist", 1.5)
+        self.collision_detection_dist = self.get_parameter("collision_detection_dist").value
+
+        self.declare_parameter("collision_safe_dist", 1.0)
+        self.collision_safe_dist = self.get_parameter("collision_safe_dist").value
+
+        # --- Internal States ---
+        self.last_cmd_time = self.get_clock().now()
         self.subscriptions_dict_position = {}
         qos = QoSProfile(depth=10)
 
@@ -98,15 +124,13 @@ class SingleRobotControllerNode(Node):
         * Timers creation
         ************************************************************************
         """
-
-        self.control_timer = self.create_timer(0.05, self.control_loop)
+        self.control_timer = self.create_timer(self.control_period, self.control_loop)
 
         """
         ************************************************************************
         * Node Subscriptions
         ************************************************************************
         """
-
         for i, robot_name in enumerate(self.robots_list):
             topic_name = f"{self.robot_name}/{robot_name}/position"
             self.robots_instances[robot_name] = RobotClass(robot_name)
@@ -169,7 +193,7 @@ class SingleRobotControllerNode(Node):
         angular_velocity = msg.angular.z
 
         vx, vy = self.Get_robot_instance().Linear_velocity_to_xy(
-            linear_velocity, angular_velocity, 0.15
+            linear_velocity, angular_velocity, self.l_point
         )
 
         self.nav2_vel_vector[0, 0] = float(vx)
@@ -228,31 +252,27 @@ class SingleRobotControllerNode(Node):
         return np.any(np.abs(vector) > threshold)
 
     def get_optimized_movement_vector(self, ideal_vector):
-        max_vel = 0.5
-        REAL_MAX_W = 1.5  
-        L_POINT = 0.2     
-        max_lateral_vel = REAL_MAX_W * L_POINT
-        lambda_conn_threshold = 0.9
+        max_lateral_vel = self.real_max_w * self.l_point
 
         grad_vector = self.Get_robot_specifict_gradient_values()
         lambda_2, _ = self.matrix_handler.Get_second_eingenvalue_and_eingenvector()
-        conn_barrier_val = self.Get_barrier_val(GAMMA, lambda_2, EPSILON)
+        conn_barrier_val = self.Get_barrier_val(self.gamma, lambda_2, self.epsilon)
 
-        if self.robot_role == "conn" and lambda_2 < lambda_conn_threshold:
+        if self.robot_role == "conn" and lambda_2 < self.lambda_conn_threshold:
             ideal_vector = self.Get_direction_vector_based_on_the_gradient(
-                0.95, grad_vector
+                self.conn_desired_mag, grad_vector
             )
 
         u_final = cp.Variable((self.dimensions, 1))
         delta = cp.Variable((1, 1), nonneg=True)
 
         cost_movement = cp.sum_squares(u_final - ideal_vector)
-        cost_slack = 1e8 * cp.sum_squares(delta)
+        cost_slack = self.slack_weight * cp.sum_squares(delta)
         objective = cp.Minimize(cost_movement + cost_slack)
 
         constraints = []
         constraints.append(grad_vector.T @ u_final >= conn_barrier_val - delta)
-        constraints.append(cp.abs(u_final) <= max_vel)
+        constraints.append(cp.abs(u_final) <= self.max_vel)
 
         if not self.holonomic_controller and not self.is_3d_mode:
             s, c = self.Get_robot_instance().Get_yaw_sine_and_cos()
@@ -279,14 +299,14 @@ class SingleRobotControllerNode(Node):
             diff = p_curr - p_other
             dist = np.linalg.norm(diff)
 
-            if dist < 1.5:
+            if dist < self.collision_detection_dist:
                 if dist > 1e-4:
                     n_vec = (diff / dist).T
                 else:
                     n_vec = np.zeros((1, self.dimensions))
                     n_vec[0, 0] = 1.0
 
-                h = dist - 1.0
+                h = dist - self.collision_safe_dist
                 constraints.append(n_vec @ u_final >= -1 * h)
 
         problem = cp.Problem(objective, constraints)
@@ -312,7 +332,9 @@ class SingleRobotControllerNode(Node):
             v_x = float(velocities_vector[0, 0])
             v_y = float(velocities_vector[1, 0])
             
-            v, w = self.Get_robot_instance().feedback_linearization_global_velocities_to_vw(v_x, v_y, 0.15)
+            v, w = self.Get_robot_instance().feedback_linearization_global_velocities_to_vw(
+                v_x, v_y, self.l_point
+            )
             
             msg.linear.x = float(v)
             msg.angular.z = float(w)

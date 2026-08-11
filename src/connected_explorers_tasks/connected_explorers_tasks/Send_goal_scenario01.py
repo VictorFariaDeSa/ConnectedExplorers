@@ -28,8 +28,8 @@ def main():
     nav3 = BasicNavigator(namespace='robot3')
     nav4 = BasicNavigator(namespace='robot4')
 
-    nav1.waitUntilNav2Active()
-    nav2.waitUntilNav2Active()
+    nav1.waitUntilNav2Active(localizer='bt_navigator')
+    nav2.waitUntilNav2Active(localizer='bt_navigator')
 
     goal1 = create_pose(nav1, 0.0, -5.0, 0.0)
     goal2 = create_pose(nav2, 0.0, 5.0, 0.0)

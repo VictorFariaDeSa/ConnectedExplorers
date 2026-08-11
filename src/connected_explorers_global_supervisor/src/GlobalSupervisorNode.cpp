@@ -109,9 +109,10 @@ public:
         this->declare_parameter<std::string>(node_param_name, "robot_");
         robot_name_prefix_ = this->get_parameter(node_param_name).as_string();
 
-        node_param_name = "problem_dimension";
-        this->declare_parameter<int>(node_param_name, 2);
-        problem_dimension_ = this->get_parameter(node_param_name).as_int();
+        node_param_name = "is_3d_mode";
+        this->declare_parameter<bool>(node_param_name, false);
+        bool is_3d = this->get_parameter(node_param_name).as_bool();
+        problem_dimension_ = is_3d ? 3 : 2;
 
 
         init_timer_ = this->create_wall_timer(

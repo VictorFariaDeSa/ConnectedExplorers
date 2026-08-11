@@ -1,4 +1,4 @@
-image: /home/victor/projects/ConnectedExplorers/src/connected_explorers_bringup/maps/empty_world.pgm
+image: /home/victor/projects/ConnectedExplorers/src/connected_explorers_bringup/maps/empty/empty.pgm
 mode: trinary
 resolution: 0.050
 origin: [-10, -10, 0]

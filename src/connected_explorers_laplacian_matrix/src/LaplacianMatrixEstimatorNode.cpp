@@ -62,6 +62,12 @@ private:
     int robot_index_;
     int problem_dimensions_;
 
+    double los_alpha_;
+    double los_beta_;
+    double distance_alpha_;
+    double distance_beta_;
+
+
 // publishers ---
 private:
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr laplacian_matrix_guess_publisher_;
@@ -128,6 +134,22 @@ public:
         this->declare_parameter<int>(node_param_name, 1);
         robot_index_ = this->get_parameter(node_param_name).as_int();
 
+        node_param_name = "los_alpha";
+        this->declare_parameter<double>(node_param_name, LOS_ALPHA);
+        los_alpha_ = this->get_parameter(node_param_name).as_double();
+
+        node_param_name = "los_beta";
+        this->declare_parameter<double>(node_param_name, LOS_BETA);
+        los_beta_ = this->get_parameter(node_param_name).as_double();
+
+        node_param_name = "distance_alpha";
+        this->declare_parameter<double>(node_param_name, DISTANCE_ALPHA);
+        distance_alpha_ = this->get_parameter(node_param_name).as_double();
+
+        node_param_name = "distance_beta";
+        this->declare_parameter<double>(node_param_name, DISTANCE_BETA);
+        distance_beta_ = this->get_parameter(node_param_name).as_double();
+
         init_timer_ = this->create_wall_timer(
             std::chrono::milliseconds(0), 
             std::bind(&LaplacianMatrixEstimator::init, this)
@@ -152,7 +174,7 @@ private:
         );
 
         conn_weight_handler_ = std::make_unique<connected_explorers_utils::ConnWeightHandler>(
-            DISTANCE_ALPHA, DISTANCE_BETA, LOS_ALPHA, LOS_BETA
+            distance_alpha_, distance_beta_, los_alpha_, los_beta_
         );
 
         // Branching Map Handlers based on Dimensions
