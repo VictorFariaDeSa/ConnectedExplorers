@@ -14,6 +14,7 @@
 #include "geometry_msgs/msg/pose.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include "connected_explorers_interfaces/msg/conn_message.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
 
 /*******************************************************************************
 * Defines
@@ -41,6 +42,7 @@ class RobotOutboxNode : public rclcpp::Node
 private:
     int robot_id_;
     double publish_rate_;
+    std::string pose_topic_name_;
 
 // publishers ---
 private:
@@ -48,7 +50,7 @@ private:
 
 // subscribers ---
 private:
-    rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr pose_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr adj_sub_;
 
 // timers ---
@@ -76,9 +78,12 @@ public:
         // node parameters ---
         this->declare_parameter<int>("robot_id", 0);
         this->declare_parameter<double>("publish_rate", 10.0); // Hz
-
         robot_id_ = this->get_parameter("robot_id").as_int();
         publish_rate_ = this->get_parameter("publish_rate").as_double();
+
+        this->declare_parameter<std::string>("pose_topic", INTERNAL_POSE_TOPIC);
+        pose_topic_name_ = this->get_parameter("pose_topic").as_string(); 
+
 
         init();
     }
@@ -95,8 +100,8 @@ private:
         );
 
         // Init Subscribers
-        pose_sub_ = this->create_subscription<geometry_msgs::msg::Pose>(
-            "robot" + std::to_string(robot_id_) + "/" + INTERNAL_POSE_TOPIC,
+        pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            "robot" + std::to_string(robot_id_) + "/" + pose_topic_name_,
             QOS_STD_PROFILE,
             std::bind(&RobotOutboxNode::pose_callback, this, std::placeholders::_1)
         );
@@ -117,9 +122,9 @@ private:
         RCLCPP_INFO(this->get_logger(), "Outbox initialized for robot_%d.", robot_id_);
     }
 
-    void pose_callback(const geometry_msgs::msg::Pose::SharedPtr msg) {
+    void pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
         std::lock_guard<std::mutex> lock(data_mutex_);
-        latest_pose_ = *msg;
+        latest_pose_ = msg->pose;
         has_pose_ = true;
     }
 

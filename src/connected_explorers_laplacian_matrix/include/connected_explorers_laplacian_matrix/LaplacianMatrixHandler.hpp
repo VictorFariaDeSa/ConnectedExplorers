@@ -4,7 +4,6 @@
 #include <Eigen/Dense>
 #include <mutex>
 #include "std_msgs/msg/float64_multi_array.hpp"
-
 namespace connected_explorers_utils{
 
 class LaplacianMatrixHandler

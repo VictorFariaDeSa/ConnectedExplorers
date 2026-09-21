@@ -65,6 +65,7 @@ private:
     int number_of_robots_;
     std::string robot_name_prefix_;
     bool is_3d_mode_;
+    std::string pose_topic_name_;
 
     double los_alpha_;
     double los_beta_;
@@ -126,6 +127,10 @@ public:
         this->declare_parameter(node_param_name, rclcpp::PARAMETER_BOOL);
         rclcpp::Parameter is_3d_mode_param = this->get_parameter(node_param_name);
 
+        node_param_name = "pose_topic";
+        this->declare_parameter<std::string>(node_param_name, POSE_TOPIC_NAME);
+        pose_topic_name_ = this->get_parameter(node_param_name).as_string();
+
         if (is_3d_mode_param.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET) {
             RCLCPP_FATAL(
                 this->get_logger(), 
@@ -177,7 +182,7 @@ private:
             this->shared_from_this(),
             number_of_robots_,
             robot_name_prefix_,
-            POSE_TOPIC_NAME,
+            pose_topic_name_,
             QOS_STD_PROFILE
         );
         pose_handler_->InitPoseSubscribers();
@@ -207,19 +212,7 @@ private:
                 std::bind(&DistanceWatcherNode::map_callback, this, std::placeholders::_1)
             );
         }
-
-
-        auto qos = rclcpp::QoS(rclcpp::KeepLast(1)).transient_local();
-        point_cloud_subscriber_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-            POINT_CLOUD_TOPIC_NAME,
-            qos,
-            std::bind(&DistanceWatcherNode::pc_callback, this, std::placeholders::_1)
-        );
-
         kdtree_ = std::make_shared<pcl::KdTreeFLANN<pcl::PointXYZ>>();
-
-
-
         line_clearance_publisher_ = this->create_publisher<connected_explorers_interfaces::msg::LineClearanceArray>(LINE_CLEARANCE_TOPIC_NAME, QOS_STD_PROFILE);
     }
 
@@ -268,9 +261,12 @@ private:
                 msg.robot1_id = i;
                 msg.robot2_id = j;
 
-                msg.weight = CalculateScore(robot_poses[i], robot_poses[j]);
-                ComputeStepGradient(robot_poses[i], robot_poses[j],msg.weight,MAP_RESOLUTION, msg.dx1, msg.dy1, msg.dz1);
-                ComputeStepGradient(robot_poses[j], robot_poses[i],msg.weight,MAP_RESOLUTION, msg.dx2, msg.dy2, msg.dz2);
+                const auto& pose_i = robot_poses[i].pose;
+                const auto& pose_j = robot_poses[j].pose;
+
+                msg.weight = CalculateScore(pose_i, pose_j);
+                ComputeStepGradient(pose_i, pose_j, msg.weight, MAP_RESOLUTION, msg.dx1, msg.dy1, msg.dz1);
+                ComputeStepGradient(pose_j, pose_i, msg.weight, MAP_RESOLUTION, msg.dx2, msg.dy2, msg.dz2);
 
                 batch_msg.clearances.push_back(msg);
             }

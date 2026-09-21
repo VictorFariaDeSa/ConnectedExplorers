@@ -6,7 +6,7 @@
 // messages
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include "std_msgs/msg/float32.hpp"
-#include "geometry_msgs/msg/pose.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 
 // custom messages
@@ -61,6 +61,7 @@ private:
     int number_of_robots_;
     int robot_index_;
     int problem_dimensions_;
+    std::string pose_topic_;
 
     double los_alpha_;
     double los_beta_;
@@ -80,7 +81,7 @@ private:
     rclcpp::Subscription<connected_explorers_interfaces::msg::SwarmTopology>::SharedPtr neigh_conn_subscriber_;
     rclcpp::Subscription<connected_explorers_interfaces::msg::RobotPose>::SharedPtr neigh_pose_subscriber_;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr own_conn_subscriber_;
-    rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr own_pose_subscriber_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr own_pose_subscriber_;
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_subscriber_;
 
 // timers ---
@@ -149,6 +150,10 @@ public:
         node_param_name = "distance_beta";
         this->declare_parameter<double>(node_param_name, DISTANCE_BETA);
         distance_beta_ = this->get_parameter(node_param_name).as_double();
+
+        node_param_name = "pose_topic";
+        this->declare_parameter<std::string>(node_param_name, POSE_TOPIC);
+        pose_topic_ = this->get_parameter(node_param_name).as_string();        
 
         init_timer_ = this->create_wall_timer(
             std::chrono::milliseconds(0), 
@@ -228,8 +233,8 @@ private:
             "robot" + std::to_string(robot_index_) + "/" + CONN_WEIGHT_TOPIC, 
             qos, std::bind(&LaplacianMatrixEstimator::ownConnCallback, this, std::placeholders::_1));
             
-        own_pose_subscriber_ = this->create_subscription<geometry_msgs::msg::Pose>(
-            "robot" + std::to_string(robot_index_) + "/" + POSE_TOPIC, 
+        own_pose_subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            "robot" + std::to_string(robot_index_) + "/" + pose_topic_, 
             qos, std::bind(&LaplacianMatrixEstimator::ownPoseCallback, this, std::placeholders::_1));
     }
 
@@ -385,9 +390,9 @@ private:
         }
     }
 
-    void ownPoseCallback(const geometry_msgs::msg::Pose::SharedPtr msg){
+    void ownPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg){
         std::lock_guard<std::mutex> lock(poses_mutex_);
-        robots_poses_guess_[robot_index_] = *msg;
+        robots_poses_guess_[robot_index_] = msg->pose;
         if (problem_dimensions_ != 3) {
             robots_poses_guess_[robot_index_].position.z = 0.0;
         }

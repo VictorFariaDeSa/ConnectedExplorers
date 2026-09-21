@@ -27,39 +27,42 @@ void MultiRobotsPoseHandler::InitPoseSubscribers()
     for (int i = 0;i<number_of_robots_;i++){
         std::string topic_name = robot_name_prefix_ + std::to_string(i+1) + pose_topic_name_;
 
-        rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr subscription = 
-        node_->create_subscription<geometry_msgs::msg::Pose>(
-            topic_name, 
-            qos_profile_,
-            [this, i](const geometry_msgs::msg::Pose::SharedPtr msg) {
-                this->PoseSubscriberCallback(msg, i);
-            }
-        );
+        rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr subscription = 
+            node_->create_subscription<geometry_msgs::msg::PoseStamped>(
+                topic_name, 
+                qos_profile_,
+                [this, i](const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
+                    this->PoseSubscriberCallback(msg, i);
+                }
+            );
 
         pose_subscriber_list_.push_back(subscription);
     }
 }
 
-void MultiRobotsPoseHandler::PoseSubscriberCallback(const geometry_msgs::msg::Pose::SharedPtr msg, int robot_index){
+void MultiRobotsPoseHandler::PoseSubscriberCallback(
+    const geometry_msgs::msg::PoseStamped::SharedPtr msg, 
+    int robot_index)
+{
     std::lock_guard<std::mutex> lock(poses_mutex_);
     latest_poses_[robot_index] = *msg;
 }
 
-std::vector<geometry_msgs::msg::Pose> MultiRobotsPoseHandler::GetRobotsPoses()
+std::vector<geometry_msgs::msg::PoseStamped> MultiRobotsPoseHandler::GetRobotsPoses()
 {
     std::lock_guard<std::mutex> lock(poses_mutex_);
     return latest_poses_;
 }
 
 
-geometry_msgs::msg::Pose MultiRobotsPoseHandler::GetSingleRobotPose(int index)
+geometry_msgs::msg::PoseStamped MultiRobotsPoseHandler::GetSingleRobotPose(int index)
 {
+    std::lock_guard<std::mutex> lock(poses_mutex_);
     if (index < 0 || index >= static_cast<int>(latest_poses_.size())) {
         RCLCPP_ERROR(node_->get_logger(), "Index %d out of bounds for GetSingleRobotPose", index);
-        return geometry_msgs::msg::Pose();
+        return geometry_msgs::msg::PoseStamped();
     }
 
-    std::lock_guard<std::mutex> lock(poses_mutex_);
     return latest_poses_[index];
 }
 }

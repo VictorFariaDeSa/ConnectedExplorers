@@ -8,6 +8,7 @@
 #include "visualization_msgs/msg/marker.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include "geometry_msgs/msg/pose.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/point.hpp"
 
 // custom messages
@@ -28,7 +29,7 @@
 #define POSE_TOPIC_NAME "/position"
 #define ROLE_TOPIC_NAME "/role"
 #define LAPLACIAN_MATRIX_TOPIC_NAME "/laplacian_matrix"
-
+#define REFERENCE_FRAME "/map"
 
 // line configs ---
 #define LINE_MARKER_TOPIC_NAME "marker_lines"
@@ -49,6 +50,7 @@ private:
     int number_of_robots_;
     std::string robot_name_prefix_;
     std::string reference_map_frame_;
+    std::string pose_topic_name_;
 
 // publishers ---
 private:
@@ -100,9 +102,14 @@ public:
         robot_name_prefix_ = this->get_parameter(node_param_name).as_string();
 
         node_param_name = "reference_frame";
-        this->declare_parameter<std::string>(node_param_name, "map");
+        this->declare_parameter<std::string>(node_param_name, REFERENCE_FRAME);
         reference_map_frame_ = this->get_parameter(node_param_name).as_string();  
         
+        node_param_name = "pose_topic";
+        this->declare_parameter<std::string>(node_param_name, POSE_TOPIC_NAME);
+        pose_topic_name_ = this->get_parameter(node_param_name).as_string(); 
+
+
         init_timer_ = this->create_wall_timer(
             std::chrono::milliseconds(0), 
             std::bind(&IllustratorNode::init, this)
@@ -125,7 +132,7 @@ private:
             this->shared_from_this(),
             number_of_robots_,
             robot_name_prefix_,
-            POSE_TOPIC_NAME,
+            pose_topic_name_,
             QOS_STD_PROFILE
         );
 
@@ -156,7 +163,8 @@ private:
         std::string line_ns = "lines";
         std::string sphere_ns = "spheres";
         std::scoped_lock lock(laplacian_matrix_mutex_, roles_mutex_);
-        std::vector<geometry_msgs::msg::Pose> robots_poses = pose_handler_->GetRobotsPoses();
+        
+        std::vector<geometry_msgs::msg::PoseStamped> robots_poses = pose_handler_->GetRobotsPoses();
 
         if (robots_poses.empty() || latest_laplacian_matrix_.data.empty()) {
             return; 
@@ -166,12 +174,14 @@ private:
         visualization_msgs::msg::Marker sphere_marker = designer_->GetBaseSphereMarkers(now, sphere_ns, SPEHRE_DEFAULT_DIAMETER);
 
         for (int i = 0; i < number_of_robots_; i++){
-            geometry_msgs::msg::Point p_i = robots_poses[i].position;
+            // Access .pose.position instead of .position
+            geometry_msgs::msg::Point p_i = robots_poses[i].pose.position;
             std_msgs::msg::ColorRGBA color_i = palette_manager_->GetColorByTask(latest_robots_roles_[i].current_task);
             designer_->AddSphereToMarkerMsg(sphere_marker, p_i, color_i);
             for (int j = i + 1; j < number_of_robots_; j++) {
                 int matrix_idx = (i * number_of_robots_) + j;
-                geometry_msgs::msg::Point p_j = robots_poses[j].position;
+                // Access .pose.position instead of .position
+                geometry_msgs::msg::Point p_j = robots_poses[j].pose.position;
                 float score = latest_laplacian_matrix_.data[matrix_idx];
                 std_msgs::msg::ColorRGBA line_color = palette_manager_->GetColorByScore(score);
                 designer_->AddLineToMarkerMsg(

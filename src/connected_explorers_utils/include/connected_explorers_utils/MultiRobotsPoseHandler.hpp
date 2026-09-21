@@ -6,8 +6,8 @@
 #include <string>
 #include <mutex>
 #include <vector>
-#include "geometry_msgs/msg/pose.hpp"
-
+#include <memory>
+#include "geometry_msgs/msg/pose_stamped.hpp"
 
 namespace connected_explorers_utils {
 class MultiRobotsPoseHandler
@@ -19,8 +19,8 @@ private:
     std::string pose_topic_name_;
     int qos_profile_;
 
-    std::vector<rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr> pose_subscriber_list_;
-    std::vector<geometry_msgs::msg::Pose> latest_poses_;
+    std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_subscriber_list_;
+    std::vector<geometry_msgs::msg::PoseStamped> latest_poses_;
 
     std::mutex poses_mutex_;
 
@@ -35,10 +35,10 @@ public:
     ~MultiRobotsPoseHandler();
 
     void InitPoseSubscribers();
-    void PoseSubscriberCallback(const geometry_msgs::msg::Pose::SharedPtr msg, int robot_index);
-    std::vector<geometry_msgs::msg::Pose> GetRobotsPoses();
-    geometry_msgs::msg::Pose GetSingleRobotPose(int index);
+    void PoseSubscriberCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg, int robot_index);
+    std::vector<geometry_msgs::msg::PoseStamped> GetRobotsPoses();
+    geometry_msgs::msg::PoseStamped GetSingleRobotPose(int index);
 };
-}
+} // namespace connected_explorers_utils
 
-#endif //MULTI_ROBOTS_POSE_HANDLER_HPP
+#endif // MULTI_ROBOTS_POSE_HANDLER_HPP

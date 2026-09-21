@@ -10,6 +10,7 @@ from rclpy.parameter import Parameter
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from std_msgs.msg import Float64MultiArray
+from crazyflie_interfaces.msg import FullState
 
 
 from .MathHandler import MatrixHandler
@@ -116,7 +117,7 @@ class SingleRobotControllerNode(Node):
         ************************************************************************
         """
         self.vel_publisher = self.create_publisher(
-            Twist, f"{self.robot_name}/cmd_vel", qos
+            FullState, f"{self.robot_name}/cmd_full_state", qos
         )
 
         """
@@ -162,6 +163,9 @@ class SingleRobotControllerNode(Node):
             Twist, topic_name, cb_function, qos
         )
         self.get_logger().info(f"Subscribed to: {topic_name}")
+
+
+        self.get_logger().info(f"CONTROLLER STARTED FOR ROBOT {self.robot_name} - ROLE: {self.robot_role}")
 
     """
     ****************************************************************************
@@ -320,13 +324,17 @@ class SingleRobotControllerNode(Node):
         return ideal_vector
 
     def send_robot_velocity(self, velocities_vector):
-        msg = Twist()
+        msg = FullState()
         
+        # Optional: If FullState contains a header
+        # ROS 2: msg.header.stamp = self.get_clock().now().to_msg()
+        # ROS 1: msg.header.stamp = rospy.Time.now()
+
         if self.holonomic_controller:
-            msg.linear.x = float(velocities_vector[0, 0])
-            msg.linear.y = float(velocities_vector[1, 0])
+            msg.twist.linear.x = float(velocities_vector[0, 0])
+            msg.twist.linear.y = float(velocities_vector[1, 0])
             if self.is_3d_mode:
-                msg.linear.z = float(velocities_vector[2, 0])
+                msg.twist.linear.z = float(velocities_vector[2, 0])
         else:
             # Feedback linearization for differential drive (non-holonomic)
             v_x = float(velocities_vector[0, 0])
@@ -336,8 +344,8 @@ class SingleRobotControllerNode(Node):
                 v_x, v_y, self.l_point
             )
             
-            msg.linear.x = float(v)
-            msg.angular.z = float(w)
+            msg.twist.linear.x = float(v)
+            msg.twist.angular.z = float(w)
             
             if self.is_3d_mode:
                 self.get_logger().warn(
@@ -347,7 +355,6 @@ class SingleRobotControllerNode(Node):
                 )
                 
         self.vel_publisher.publish(msg)
-
     def get_collision_safe(self, safe_dist):
         poses = [r.pose.position for r in self.robots_instances.values()]
         for i in range(len(poses)):

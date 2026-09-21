@@ -27,6 +27,7 @@ target_link_libraries(laplacian_matrix_utils Eigen3::Eigen)
 ament_target_dependencies(laplacian_matrix_utils 
   rclcpp 
   std_msgs
+  geometry_msgs
 )
 
 # --- The Node (The Executable) ---
@@ -40,6 +41,7 @@ target_link_libraries(laplacian_matrix_estimator_node laplacian_matrix_utils)
 ament_target_dependencies(laplacian_matrix_estimator_node 
   rclcpp 
   std_msgs 
+  geometry_msgs
   Eigen3
   connected_explorers_interfaces
   connected_explorers_utils
