@@ -14,9 +14,11 @@ MapHandler::~MapHandler()
 
 void MapHandler::InitMapSubscriber()
 {
+    // map_server publishes the map once as transient_local (latched); a
+    // volatile subscriber that starts late would never receive it.
     map_subscriber_ = node_->create_subscription<nav_msgs::msg::OccupancyGrid>(
             map_topic_name_,
-            qos_profile_,
+            rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
             std::bind(&MapHandler::MapSubscriberCallback,this,std::placeholders::_1)
         );
 

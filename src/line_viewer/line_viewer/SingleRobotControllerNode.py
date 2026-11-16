@@ -111,6 +111,15 @@ class SingleRobotControllerNode(Node):
         self.gradient_vector = np.zeros((self.n_robots * self.dimensions, 1))
         self.active = True
 
+        # FullState setpoint tracking: Crazyflie firmware tracks pose.position,
+        # so we must send a real position target, not just a twist.
+        self.declare_parameter("flight_height", 0.5)
+        self.flight_height = self.get_parameter("flight_height").value
+        self.declare_parameter("max_setpoint_lead", 0.3)
+        self.max_setpoint_lead = self.get_parameter("max_setpoint_lead").value
+        self.own_pose_received = False
+        self.setpoint = None  # np.array([x, y, z]) integrated position target
+
         """
         ************************************************************************
         * Publishers
@@ -176,6 +185,8 @@ class SingleRobotControllerNode(Node):
     def on_pose_cb(self, msg, robot_index):
         robot_name = self.robots_list[robot_index]
         self.robots_instances[robot_name].Set_pose(msg)
+        if robot_name == self.robot_name:
+            self.own_pose_received = True
 
     def on_laplacian_cb(self, msg):
         laplacian_matrix = float64multArray_to_numpy_matrix(msg)
@@ -323,18 +334,53 @@ class SingleRobotControllerNode(Node):
 
         return ideal_vector
 
+    def update_setpoint(self, velocities_vector):
+        """Integrate the commanded velocity into a position setpoint.
+
+        Starts at the robot's measured pose and is clamped to stay within
+        max_setpoint_lead of it, so the target never runs away from the drone.
+        """
+        p = self.Get_robot_instance().pose.position
+        measured = np.array([p.x, p.y, p.z if self.is_3d_mode else self.flight_height])
+
+        if self.setpoint is None:
+            self.setpoint = measured.copy()
+
+        vel = np.zeros(3)
+        vel[:self.dimensions] = velocities_vector[:self.dimensions, 0]
+        self.setpoint = self.setpoint + vel * self.control_period
+        if not self.is_3d_mode:
+            self.setpoint[2] = self.flight_height
+
+        lead = self.setpoint - measured
+        lead_norm = np.linalg.norm(lead)
+        if lead_norm > self.max_setpoint_lead:
+            self.setpoint = measured + lead * (self.max_setpoint_lead / lead_norm)
+
+        return self.setpoint, vel
+
     def send_robot_velocity(self, velocities_vector):
+        # Without our own pose the setpoint would default to the origin.
+        if not self.own_pose_received:
+            self.get_logger().warn(
+                "Waiting for own pose before publishing cmd_full_state...",
+                throttle_duration_sec=5.0,
+            )
+            return
+
         msg = FullState()
-        
-        # Optional: If FullState contains a header
-        # ROS 2: msg.header.stamp = self.get_clock().now().to_msg()
-        # ROS 1: msg.header.stamp = rospy.Time.now()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = "world"
 
         if self.holonomic_controller:
-            msg.twist.linear.x = float(velocities_vector[0, 0])
-            msg.twist.linear.y = float(velocities_vector[1, 0])
-            if self.is_3d_mode:
-                msg.twist.linear.z = float(velocities_vector[2, 0])
+            setpoint, vel = self.update_setpoint(velocities_vector)
+            msg.pose.position.x = float(setpoint[0])
+            msg.pose.position.y = float(setpoint[1])
+            msg.pose.position.z = float(setpoint[2])
+            msg.pose.orientation.w = 1.0
+            msg.twist.linear.x = float(vel[0])
+            msg.twist.linear.y = float(vel[1])
+            msg.twist.linear.z = float(vel[2])
         else:
             # Feedback linearization for differential drive (non-holonomic)
             v_x = float(velocities_vector[0, 0])

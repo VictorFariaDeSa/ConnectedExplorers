@@ -206,9 +206,10 @@ private:
             );
         } else {
             RCLCPP_INFO(this->get_logger(), "Initializing in 2D Mode...");
+            // map_server publishes /map once as transient_local (latched)
             map_subscriber_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
                 MAP_TOPIC_NAME,
-                QOS_STD_PROFILE,
+                rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
                 std::bind(&DistanceWatcherNode::map_callback, this, std::placeholders::_1)
             );
         }
@@ -217,7 +218,13 @@ private:
     }
 
 
-    double CalculateScore(const geometry_msgs::msg::Pose& p1, const geometry_msgs::msg::Pose& p2) {
+    double CalculateScore(geometry_msgs::msg::Pose p1, geometry_msgs::msg::Pose p2) {
+        // 2D map obstacles live at z = 0; flying robots (e.g. Crazyflies at
+        // 0.5 m) would otherwise always be >= z away from every obstacle.
+        if (!is_3d_mode_) {
+            p1.position.z = 0.0;
+            p2.position.z = 0.0;
+        }
         auto coord1 = TransformCoordInVoxel(p1.position.x, p1.position.y, p1.position.z, MAP_RESOLUTION);
         auto coord2 = TransformCoordInVoxel(p2.position.x, p2.position.y, p2.position.z, MAP_RESOLUTION);
 
